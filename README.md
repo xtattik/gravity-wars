@@ -36,6 +36,7 @@ A shot ends when it hits a planet or a ship, leaves the play area, or burns out.
 
 **Game**
 - **Opponent:** two players taking turns on one device, or the computer (Easy / Medium / Hard). The computer aims better as the round goes on, much like a person correcting from their trails.
+- **Tournament:** first to a set number of points wins (default 5, from 1 to 25). A *First to 5* badge sits next to the scores. When someone reaches the target, a winner's screen shows the final score and a match summary (shots, hits and achievements for each player), with a **New tournament** button. Turning the tournament on, or changing the points, resets the scores. Tournament wins are recorded in the shot log.
 - **Number of planets:** from *Very few* to *Lots*. Layouts are always random; this only sets a rough range. It applies from the next round.
 - **Achievements:** turn the trick-shot pop-ups on or off (see below).
 

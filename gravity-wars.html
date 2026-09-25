@@ -33,6 +33,10 @@ canvas{display:block;background:#000;border:1px solid var(--line);border-radius:
 #overlay .box{pointer-events:auto;background:rgba(16,19,31,.94);border:1px solid var(--line);border-radius:14px;
   padding:20px 28px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.6)}
 #overlay .msg{font-size:22px;font-weight:700;margin-bottom:14px}
+#overlay .sub{font-size:14px;color:#cfd4ea;margin:-6px 0 14px;line-height:1.5}
+#matchChip{font-size:12px;font-weight:700;color:#ffd24a;border:1px solid #6b5a1d;background:#2a2410;border-radius:10px;padding:2px 8px}
+.tourn{display:flex;align-items:center;gap:8px;margin:8px 0;flex-wrap:wrap}
+.tourn input[type=number]{width:62px;background:#0a0c16;border:1px solid var(--line);border-radius:6px;padding:4px 6px;text-align:right}
 #controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;padding:10px 14px;
   background:var(--panel);border-top:1px solid var(--line)}
 .turn{font-weight:700;padding:6px 12px;border-radius:8px;border:2px solid currentColor;min-width:130px;text-align:center}
@@ -125,6 +129,7 @@ table.log tr.hit td{background:rgba(93,255,138,.07)}
     <span class="p1" id="n0">Player 1</span><span class="s p1" id="s0">0</span>
     <span style="color:var(--muted)">:</span>
     <span class="s p2" id="s1">0</span><span class="p2" id="n1">Player 2</span>
+    <span id="matchChip" hidden></span>
   </div>
   <div class="legend">Density: low <div class="bar" id="legendBar"></div> high</div>
   <div class="spacer"></div>
@@ -153,7 +158,7 @@ table.log tr.hit td{background:rgba(93,255,138,.07)}
   <canvas id="c"></canvas>
   <div id="toasts"></div>
   <div id="overlay">
-    <div class="box" id="roundBox"><div class="msg" id="overMsg"></div><button id="nextBtn" class="primary">Next round ▶</button></div>
+    <div class="box" id="roundBox"><div class="msg" id="overMsg"></div><div class="sub" id="overSub" hidden></div><button id="nextBtn" class="primary">Next round ▶</button></div>
     <div class="box" id="chalDone" hidden>
       <div class="stars" id="cdStars"></div>
       <div class="msg" id="cdMsg"></div>
@@ -195,6 +200,11 @@ table.log tr.hit td{background:rgba(93,255,138,.07)}
       <option value="medium">Medium</option>
       <option value="hard">Hard</option>
     </select></label>
+  <div class="tourn">
+    <label class="chk" style="margin:0"><input type="checkbox" data-k="tournament"> Tournament:</label>
+    first to <input type="number" min="1" max="25" step="1" data-k="target" data-num aria-label="Points to win"> points wins
+  </div>
+  <p class="note">Turning the tournament on, or changing the points, resets the scores and starts a new round.</p>
   <label class="row">Number of planets
     <span><input type="range" min="1" max="5" step="1" data-k="planets" data-num> <b id="planetsLbl"></b></span></label>
   <p class="note">Planets are always random, so this only sets a rough range. It applies from the next round.</p>
@@ -339,7 +349,7 @@ const LEVEL_NAMES = {1:'Very few', 2:'Few', 3:'Some', 4:'Many', 5:'Lots'};
 const PCOL = ['#f4f4f8', '#ff5cf0'];   // white & magenta: colours planets never use
 const ANIM_STEPS = {slow:3, normal:6, fast:24};
 const DEFAULTS = {opponent:'human', aiLevel:'medium', planets:3, gravity:1, edges:'open', trails:'all', anim:'normal',
-  fieldArrows:false, fieldMap:false, shotVectors:false, planetInfo:false, readout:true, achievements:true};
+  fieldArrows:false, fieldMap:false, shotVectors:false, planetInfo:false, readout:true, achievements:true, tournament:false, target:5};
 
 let settings = loadSettings();
 G = G_BASE * settings.gravity;
@@ -352,6 +362,7 @@ function saveSettings(){ try { localStorage.setItem('gw-settings', JSON.stringif
 // ---------- state ----------
 let planets = [], ships = [], shots = [], live = null, particles = [];
 let score = [0,0], current = 0, starter = 1, state = 'aim', aiShots = 0, roundId = 0;
+let matchFrom = 1, matchOver = false;   // first round of the current tournament; set when someone reaches the target
 let challenge = null;              // {i, L, shots, misses, g} while a challenge is being played
 let aim = [{a:20, s:40}, {a:160, s:40}];
 let fieldMapCanvas = null, fieldArrows = [], lastInfo = null;
@@ -923,9 +934,20 @@ function endShot(){
     burst(ships[s.hit].x, ships[s.hit].y, PCOL[s.hit], 90, 240);
     burst(ships[s.hit].x, ships[s.hit].y, '#ffffff', 40, 140);
     state = 'over';
-    $('overMsg').textContent = s.hit === s.owner
-      ? `${who} hit their own ship! Point to ${name(winner)}.`
-      : `${who} hits ${tgt}!`;
+    const hitMsg = s.hit === s.owner ? `${who} hit their own ship! Point to ${name(winner)}.` : `${who} hits ${tgt}!`;
+    matchOver = settings.tournament && score[winner] >= settings.target;
+    if (matchOver){
+      const r = rounds[rounds.length - 1];
+      if (r){ r.matchWin = winner; r.matchScore = [...score]; }
+      $('overMsg').textContent = `🏆 ${name(winner)} wins the tournament ${score[winner]}–${score[1 - winner]}!`;
+      $('overSub').textContent = hitMsg + ' ' + matchSummary();
+      for (let k = 0; k < 6; k++) burst(rand(150, W - 150), rand(120, H - 120), k % 2 ? '#ffffff' : PCOL[winner], 60, 260);
+    } else {
+      $('overMsg').textContent = hitMsg;
+      $('overSub').textContent = '';
+    }
+    $('overSub').hidden = !matchOver;
+    $('nextBtn').textContent = matchOver ? 'New tournament ▶' : 'Next round ▶';
     $('overMsg').style.color = PCOL[winner];
     $('overlay').style.display = 'flex';
     setStatus(tag + `Hit after ${secs} s.`);
@@ -1034,6 +1056,24 @@ function renderAchList(){
   }
 }
 
+// ---------- tournament ----------
+function matchSummary(){
+  const m = shotLog.filter(e => e.round >= matchFrom && !rounds.find(r => r.id === e.round)?.challenge);
+  return [0, 1].map(i => {
+    const mine = m.filter(e => e.player === i), hits = mine.filter(e => e.hit).length;
+    const ach = [...new Set(mine.flatMap(e => e.ach))];
+    return `${name(i)}: ${mine.length} shot${mine.length === 1 ? '' : 's'}, ${hits} hit${hits === 1 ? '' : 's'}${ach.length ? ` (${ach.join(', ')})` : ''}.`;
+  }).join(' ');
+}
+function newMatch(){
+  score = [0, 0]; matchOver = false;
+  matchFrom = roundId + 1;
+  if (!challenge) nextRound(); else updateUI();
+}
+function afterRound(){                       // "Next round" / "New tournament" / Enter at the end of a round
+  if (matchOver) newMatch(); else nextRound();
+}
+
 // ---------- shot log & exports ----------
 let shotLog = [];                 // one entry per shot fired this session
 let rounds = [];                  // one entry per round played this session
@@ -1090,7 +1130,8 @@ function roundTitle(r){
   if (r.challenge) return `${r.challenge} (gravity ${g}): ${r.passed ? `passed in ${r.tries} shot${r.tries === 1 ? '' : 's'}` : 'not passed'}`;
   const w = r.winner === null ? (r.id === roundId && state !== 'over' ? 'in progress' : 'no winner')
     : `won by ${playerName(r.winner, r.winner === 1 && r.cpu)}`;
-  return `Round ${r.num}: ${r.planets} planets, gravity ${g}, ${{open:'open space', vanish:'vanishing edges', bounce:'bouncing edges', wrap:'wrap-around edges'}[r.edges]}, ${w}`;
+  const t = r.matchWin == null ? '' : `. ${playerName(r.matchWin, r.matchWin === 1 && r.cpu)} wins the tournament ${r.matchScore[r.matchWin]}–${r.matchScore[1 - r.matchWin]}!`;
+  return `Round ${r.num}: ${r.planets} planet${r.planets === 1 ? '' : 's'}, gravity ${g}, ${{open:'open space', vanish:'vanishing edges', bounce:'bouncing edges', wrap:'wrap-around edges'}[r.edges]}, ${w}${t}`;
 }
 const COLS = ['Round', 'Player', 'Shot', 'Angle (°)', 'Speed', 'Angle change', 'Speed change', 'Gravity', 'Result', 'Time (s)', 'Closest approach', 'Achievements'];
 const NUMERIC = new Set([2, 3, 4, 5, 6, 9, 10]);     // right-aligned columns (indexes into COLS)
@@ -1539,6 +1580,8 @@ function updateUI(){
   fb.textContent = state === 'flying' ? 'SKIP ▶▶' : 'FIRE';
   fb.disabled = !(state === 'aim' || state === 'flying');
   $('s0').textContent = score[0]; $('s1').textContent = score[1];
+  $('matchChip').hidden = !settings.tournament;
+  $('matchChip').textContent = `First to ${settings.target}`;
   $('n1').textContent = name(1);
 }
 
@@ -1554,7 +1597,7 @@ speedNum.addEventListener('input', () => { const v = parseNum(speedNum.value); i
 angleRange.addEventListener('input', () => setAngle(angleRange.value));
 speedRange.addEventListener('input', () => setSpeed(speedRange.value));
 $('fireBtn').addEventListener('click', () => { if (state === 'flying') skip(); else if (state === 'aim') fire(); });
-$('nextBtn').addEventListener('click', nextRound);
+$('nextBtn').addEventListener('click', afterRound);
 $('newBtn').addEventListener('click', () => challenge ? startChallenge(challenge.i) : nextRound());
 $('clearBtn').addEventListener('click', () => { shots = []; });
 
@@ -1566,7 +1609,7 @@ window.addEventListener('keydown', e => {
     e.preventDefault();
     if (isNum) e.target.dispatchEvent(new Event('change'));
     if (state === 'flying') skip();
-    else if (state === 'over') challenge ? $('cdNext').hidden ? openChalList() : startChallenge(challenge.i + 1) : nextRound();
+    else if (state === 'over') challenge ? $('cdNext').hidden ? openChalList() : startChallenge(challenge.i + 1) : afterRound();
     else if (state === 'aim') fire();
     return;
   }
@@ -1610,6 +1653,8 @@ sDlg.querySelectorAll('[data-k]').forEach(el => {
     if (k === 'opponent'){ updateUI(); maybeAI(); }
     if (k === 'gravity') applyGravity();
     if (k === 'achievements') updateAchCount();
+    if (k === 'target'){ settings.target = clamp(Math.round(settings.target) || 5, 1, 25); el.value = settings.target; saveSettings(); }
+    if (k === 'tournament' || (k === 'target' && settings.tournament)) newMatch();
   });
 });
 $('settingsBtn').addEventListener('click', () => { refreshSettingsForm(); sDlg.showModal(); });
@@ -1619,7 +1664,7 @@ $('gravBtn').addEventListener('click', () => {
 });
 $('closeSettings').addEventListener('click', () => sDlg.close());
 $('applyNew').addEventListener('click', () => { sDlg.close(); nextRound(); });
-$('resetScores').addEventListener('click', () => { score = [0, 0]; updateUI(); });
+$('resetScores').addEventListener('click', () => { score = [0, 0]; matchOver = false; matchFrom = roundId; updateUI(); });
 const aDlg = $('achDlg');
 $('achBtn').addEventListener('click', () => { renderAchList(); aDlg.showModal(); });
 $('achClose').addEventListener('click', () => aDlg.close());
