@@ -59,6 +59,23 @@ dialog .primary{background:#1d2a55;border-color:var(--accent)}
 .help p,.help li{line-height:1.45}
 .help .flex{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
 kbd{background:#0a0c16;border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:13px}
+#toasts{position:absolute;top:14px;right:14px;display:flex;flex-direction:column;gap:8px;z-index:5;pointer-events:none;max-width:min(360px,80%)}
+.toast{background:rgba(16,19,31,.96);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:10px;
+  padding:10px 12px;display:flex;gap:10px;align-items:flex-start;box-shadow:0 6px 24px rgba(0,0,0,.5);
+  animation:toastIn .35s ease-out;transition:opacity .5s,transform .5s}
+.toast.out{opacity:0;transform:translateX(30px)}
+.toast .ico{font-size:26px;line-height:1}
+.toast .t1{font-weight:700}
+.toast .t2{font-size:13px;color:var(--muted);margin-top:2px}
+@keyframes toastIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:none}}
+.ach-list{display:grid;gap:8px;margin-top:6px}
+.ach{display:flex;gap:12px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}
+.ach .ico{font-size:28px;line-height:1.1;width:34px;text-align:center}
+.ach.locked .ico{filter:grayscale(1);opacity:.35}
+.ach .nm{font-weight:700}
+.ach .ds{font-size:14px;margin-top:2px}
+.ach .ph{font-size:13px;color:var(--muted);margin-top:4px;font-style:italic}
+.ach .who{margin-left:auto;text-align:right;font-size:13px;white-space:nowrap;font-weight:600}
 @media (max-width:700px){
   header h1{font-size:15px}
   .ctl input[type=range]{width:110px}
@@ -81,12 +98,14 @@ kbd{background:#0a0c16;border:1px solid var(--line);border-radius:4px;padding:1p
     <button id="clearBtn" title="Remove old shot trails">Clear trails</button>
     <button id="newBtn">New round</button>
     <button id="settingsBtn">⚙ Settings</button>
+    <button id="achBtn" title="Achievements earned this session">🏆 <b id="achCount">0/8</b></button>
     <button id="helpBtn">? Help</button>
   </div>
 </header>
 
 <div id="stage">
   <canvas id="c"></canvas>
+  <div id="toasts"></div>
   <div id="overlay"><div class="box"><div class="msg" id="overMsg"></div><button id="nextBtn" class="primary">Next round ▶</button></div></div>
 </div>
 
@@ -121,6 +140,8 @@ kbd{background:#0a0c16;border:1px solid var(--line);border-radius:4px;padding:1p
   <label class="row">Number of planets
     <span><input type="range" min="1" max="5" step="1" data-k="planets" data-num> <b id="planetsLbl"></b></span></label>
   <p class="note">Planets are always random, so this only sets a rough range. It applies from the next round.</p>
+  <label class="chk"><input type="checkbox" data-k="achievements"> Achievements (pop-ups for trick shots)</label>
+
   <h3>Physics</h3>
   <label class="row">Gravity strength
     <span><input type="range" min="0" max="3" step="0.25" data-k="gravity" data-num> <b id="gravityLbl"></b></span></label>
@@ -158,6 +179,16 @@ kbd{background:#0a0c16;border:1px solid var(--line);border-radius:4px;padding:1p
     <button id="resetScores">Reset scores</button>
     <button id="applyNew">Start new round</button>
     <button id="closeSettings" class="primary">Done</button>
+  </div>
+</dialog>
+
+<dialog id="achDlg">
+  <h2>🏆 Achievements</h2>
+  <p class="note">Earned this session. They reset when the page is reloaded or with the button below.</p>
+  <div class="ach-list" id="achList"></div>
+  <div class="btnrow">
+    <button id="achReset">Reset achievements</button>
+    <button id="achClose" class="primary">Close</button>
   </div>
 </dialog>
 
@@ -213,7 +244,7 @@ const LEVEL_NAMES = {1:'Very few', 2:'Few', 3:'Some', 4:'Many', 5:'Lots'};
 const PCOL = ['#f4f4f8', '#ff5cf0'];   // white & magenta: colours planets never use
 const ANIM_STEPS = {slow:3, normal:6, fast:24};
 const DEFAULTS = {opponent:'human', aiLevel:'medium', planets:3, gravity:1, edges:'open', trails:'all', anim:'normal',
-  fieldArrows:false, fieldMap:false, shotVectors:false, planetInfo:false, readout:true};
+  fieldArrows:false, fieldMap:false, shotVectors:false, planetInfo:false, readout:true, achievements:true};
 
 let settings = loadSettings();
 G = G_BASE * settings.gravity;
@@ -324,7 +355,8 @@ function newShot(pi, angleDeg, speed, record){
   const ux = Math.cos(th), uy = -Math.sin(th);           // screen y points down
   const x = sh.x + ux*(SHIP_R+2), y = sh.y + uy*(SHIP_R+2);
   const angs = [aim[0].a, aim[1].a]; angs[pi] = angleDeg;   // ship headings for the hit test (as drawn)
-  return {owner:pi, x, y, vx:ux*v, vy:uy*v, a:accelAt(x,y), t:0, n:0, armed:false, angs,
+  const track = record ? {turn:0, planetTurn:planets.map(() => 0), sweep:planets.map(() => 0), bounces:0} : null;
+  return {owner:pi, x, y, vx:ux*v, vy:uy*v, a:accelAt(x,y), t:0, n:0, armed:false, angs, track,
     done:false, result:null, hit:-1, minD:Infinity, path: record ? [[x,y]] : null};
 }
 
@@ -339,10 +371,13 @@ function stepShot(s){
       if (s.x < 0){ s.x += W; broke = true; } else if (s.x >= W){ s.x -= W; broke = true; }
       if (s.y < 0){ s.y += H; broke = true; } else if (s.y >= H){ s.y -= H; broke = true; }
       break;
-    case 'bounce':
+    case 'bounce': {
+      const bvx = s.vx, bvy = s.vy;
       if (s.x < 0){ s.x = -s.x; s.vx = -s.vx; } else if (s.x > W){ s.x = 2*W - s.x; s.vx = -s.vx; }
       if (s.y < 0){ s.y = -s.y; s.vy = -s.vy; } else if (s.y > H){ s.y = 2*H - s.y; s.vy = -s.vy; }
+      if (s.track && (bvx !== s.vx || bvy !== s.vy)) s.track.bounces++;
       break;
+    }
     case 'vanish':
       if (s.x < 0 || s.x > W || s.y < 0 || s.y > H){ s.done = true; s.result = 'edge'; }
       break;
@@ -350,8 +385,10 @@ function stepShot(s){
       if (s.x < -W || s.x > 2*W || s.y < -H || s.y > 2*H){ s.done = true; s.result = 'lost'; }
   }
   const a2 = accelAt(s.x, s.y);
+  const vx0 = s.vx, vy0 = s.vy;
   s.vx += 0.5*(ax + a2[0])*DT; s.vy += 0.5*(ay + a2[1])*DT;
   s.a = a2; s.t += DT; s.n++;
+  if (s.track && !broke) trackStep(s, px, py, vx0, vy0);
   if (s.path){
     if (broke) s.path.push(null);
     if (broke || s.n % 2 === 0 || s.done) s.path.push([s.x, s.y]);
@@ -383,6 +420,23 @@ function stepShot(s){
   }
   if (!s.armed && Math.hypot(s.x - ships[s.owner].x, s.y - ships[s.owner].y) > SHIP_R*3) s.armed = true;
   if (s.t >= MAX_T){ s.done = true; s.result = 'timeout'; }
+}
+
+// Achievement bookkeeping for one step: how far gravity turned the shot (in total, and while each
+// planet was the strongest pull) and how far the shot has swept around each planet's centre.
+function trackStep(s, px, py, vx0, vy0){
+  const T = s.track;
+  const dAng = Math.atan2(vx0*s.vy - vy0*s.vx, vx0*s.vx + vy0*s.vy);
+  T.turn += Math.abs(dAng);
+  let best = -1, bestPull = 0;
+  planets.forEach((p, i) => {
+    const pull = p.m / ((p.x - s.x)**2 + (p.y - s.y)**2);
+    if (pull > bestPull){ bestPull = pull; best = i; }
+    let d = Math.atan2(s.y - p.y, s.x - p.x) - Math.atan2(py - p.y, px - p.x);
+    if (d > Math.PI) d -= 2*Math.PI; else if (d < -Math.PI) d += 2*Math.PI;
+    T.sweep[i] += d;
+  });
+  if (best >= 0) T.planetTurn[best] += dAng;
 }
 
 // ---------- round generation ----------
@@ -702,7 +756,7 @@ function nextRound(){
   roundId++;
   starter = 1 - starter; current = starter;
   makeRound();
-  shots = []; live = null; lastInfo = null; aiShots = 0; particles = [];
+  shots = []; live = null; lastInfo = null; aiShots = 0; particles = []; shotsThisRound = [0, 0];
   state = 'aim';
   $('overlay').style.display = 'none';
   setStatus(`New round: ${name(current)} fires first.`);
@@ -714,6 +768,7 @@ function fire(){
   const A = aim[current];
   if (settings.trails === 'off') shots = [];
   live = newShot(current, A.a, A.s, true);
+  shotsThisRound[current]++;
   lastInfo = null;
   state = 'flying';
   setStatus(`${name(current)} fires: angle ${A.a}°, speed ${A.s}`);
@@ -727,6 +782,7 @@ function endShot(){
   if (settings.trails === 'last') shots = shots.filter(x => x.owner !== s.owner);
   shots.push({owner:s.owner, path:s.path, end:[s.x, s.y], result:s.result});
   lastInfo = {owner:s.owner, t:s.t, v:Math.hypot(s.vx, s.vy), a:Math.hypot(s.a[0], s.a[1]), minD:s.minD, destroyed:-1};
+  checkAchievements(s);
   const who = name(s.owner), tgt = name(1 - s.owner), secs = s.t.toFixed(1);
   const close = `Closest approach to ${tgt}: ${Math.round(s.minD)}.`;
   const A = aim[s.owner];
@@ -758,6 +814,91 @@ function endShot(){
   current = 1 - current;
   state = 'aim';
   syncInputs(); updateUI(); maybeAI();
+}
+
+// ---------- achievements ----------
+const TAU = Math.PI*2;
+const ACHIEVEMENTS = [
+  {id:'deadshot', ico:'🎯', name:'Deadshot',
+    desc:'Hit the enemy with your first shot on a new map.',
+    phys:'You predicted how every planet would bend the path before seeing a single trail.',
+    test:(s, c) => c.hitEnemy && c.shotNo === 1},
+  {id:'loop', ico:'🔄', name:'Loop de loop',
+    desc:'Your shot goes all the way round a planet.',
+    phys:'Gravity pulled the shot towards the planet\'s centre. That constant sideways pull kept bending its path into a loop, which is how moons and satellites orbit.',
+    test:s => s.track.sweep.some(a => Math.abs(a) > TAU + 0.05)},
+  {id:'slingshot', ico:'☄️', name:'Slingshot',
+    desc:'Swing at least 90° around one planet, then hit the enemy.',
+    phys:'The planet turned the shot, but with the planet standing still the shot left as fast as it arrived. Real spacecraft gain speed from a "gravity assist" because the planet is moving.',
+    test:(s, c) => c.hitEnemy && s.track.planetTurn.some(a => Math.abs(a) >= Math.PI/2)},
+  {id:'foot', ico:'🦶', name:'Shot myself in the… foot',
+    desc:'Gravity swings your shot back round and it hits your own ship.',
+    phys:'A force at an angle to the motion changes the direction, not just the speed. Enough of it and your shot comes home.',
+    test:(s, c) => c.hitSelf && s.track.turn >= 2*Math.PI/3},
+  {id:'hang', ico:'⏳', name:'Hang time',
+    desc:'Hit the enemy after more than 15 seconds in flight.',
+    phys:'A slow shot spends longer near each planet, so gravity has more time to change its velocity.',
+    test:(s, c) => c.hitEnemy && s.t > 15},
+  {id:'shave', ico:'😅', name:'Close shave',
+    desc:'Miss the enemy by less than 5 units.',
+    phys:'A tiny change in angle grows into a big miss over a long curved path. That\'s why aiming here takes careful adjustment.',
+    test:(s, c) => !c.hitEnemy && s.minD < 5},
+  {id:'newton', ico:'🍎', name:'Newton\'s First',
+    desc:'Hit the enemy with gravity switched off.',
+    phys:'With no force acting, an object keeps moving in a straight line at a constant speed (Newton\'s first law).',
+    test:(s, c) => c.hitEnemy && settings.gravity === 0},
+  {id:'pinball', ico:'🎱', name:'Pinball',
+    desc:'Hit the enemy after 3 or more bounces off the edges (Bounce mode).',
+    phys:'Each bounce reverses one part of the velocity, so the angle it comes in at equals the angle it goes out at.',
+    test:(s, c) => c.hitEnemy && s.track.bounces >= 3}
+];
+let earned = {};                  // id -> [times by player 1, times by player 2]
+let shotsThisRound = [0, 0];
+
+function checkAchievements(s){
+  if (!s.track) return;
+  const c = {
+    hitEnemy: s.result === 'ship' && s.hit !== s.owner,
+    hitSelf:  s.result === 'ship' && s.hit === s.owner,
+    shotNo:   shotsThisRound[s.owner]
+  };
+  let delay = 0;
+  for (const a of ACHIEVEMENTS){
+    if (!a.test(s, c)) continue;
+    (earned[a.id] = earned[a.id] || [0, 0])[s.owner]++;
+    if (settings.achievements){ setTimeout(() => toast(a, s.owner), delay); delay += 700; }
+  }
+  updateAchCount();
+}
+function toast(a, who){
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.style.borderLeftColor = PCOL[who];
+  el.innerHTML = `<div class="ico">${a.ico}</div><div><div class="t1"></div><div class="t2"></div></div>`;
+  el.querySelector('.t1').textContent = `${a.name}!`;
+  el.querySelector('.t2').textContent = `${name(who)}: ${a.desc}`;
+  $('toasts').appendChild(el);
+  setTimeout(() => el.classList.add('out'), 5500);
+  setTimeout(() => el.remove(), 6100);
+}
+function updateAchCount(){
+  $('achCount').textContent = `${ACHIEVEMENTS.filter(a => earned[a.id]).length}/${ACHIEVEMENTS.length}`;
+  $('achBtn').style.display = settings.achievements ? '' : 'none';
+}
+function renderAchList(){
+  const list = $('achList'); list.innerHTML = '';
+  for (const a of ACHIEVEMENTS){
+    const e = earned[a.id], row = document.createElement('div');
+    row.className = 'ach' + (e ? '' : ' locked');
+    row.innerHTML = `<div class="ico">${a.ico}</div><div><div class="nm"></div><div class="ds"></div>${e ? '<div class="ph"></div>' : ''}</div><div class="who"></div>`;
+    row.querySelector('.nm').textContent = a.name;
+    row.querySelector('.ds').textContent = a.desc;
+    if (e) row.querySelector('.ph').textContent = a.phys;
+    const who = row.querySelector('.who');
+    if (e) [0, 1].forEach(i => { if (e[i]){ const d = document.createElement('div'); d.style.color = PCOL[i]; d.textContent = `${name(i)} ×${e[i]}`; who.appendChild(d); } });
+    else { who.textContent = 'Not yet'; who.style.color = 'var(--muted)'; }
+    list.appendChild(row);
+  }
 }
 
 // ---------- computer opponent ----------
@@ -916,6 +1057,7 @@ sDlg.querySelectorAll('[data-k]').forEach(el => {
     $('planetsLbl').textContent = LEVEL_NAMES[settings.planets];
     if (k === 'opponent'){ updateUI(); maybeAI(); }
     if (k === 'gravity') applyGravity();
+    if (k === 'achievements') updateAchCount();
   });
 });
 $('settingsBtn').addEventListener('click', () => { refreshSettingsForm(); sDlg.showModal(); });
@@ -926,6 +1068,10 @@ $('gravBtn').addEventListener('click', () => {
 $('closeSettings').addEventListener('click', () => sDlg.close());
 $('applyNew').addEventListener('click', () => { sDlg.close(); nextRound(); });
 $('resetScores').addEventListener('click', () => { score = [0, 0]; updateUI(); });
+const aDlg = $('achDlg');
+$('achBtn').addEventListener('click', () => { renderAchList(); aDlg.showModal(); });
+$('achClose').addEventListener('click', () => aDlg.close());
+$('achReset').addEventListener('click', () => { earned = {}; updateAchCount(); renderAchList(); });
 
 // help dialog
 const hDlg = $('helpDlg');
@@ -935,6 +1081,7 @@ $('closeHelp').addEventListener('click', () => hDlg.close());
 // legend
 $('legendBar').style.background = `linear-gradient(90deg, ${[1,1.5,2,2.5,3,3.5,4,4.5,5].map(d => densityColor(d, 55)).join(',')})`;
 applyGravity();
+updateAchCount();
 
 // ---------- main loop ----------
 let lastT = performance.now(), stepAcc = 0;

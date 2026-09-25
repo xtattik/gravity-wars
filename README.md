@@ -37,6 +37,7 @@ A shot ends when it hits a planet or a ship, leaves the play area, or has flown 
 **Game**
 - **Opponent:** two players taking turns on one device, or the computer (Easy / Medium / Hard). The computer aims better as the round goes on, much like a person correcting from their trails.
 - **Number of planets:** from *Very few* to *Lots*. Layouts are always random; this only sets a rough range. It applies from the next round.
+- **Achievements:** turn the trick-shot pop-ups on or off (see below).
 
 **Physics**
 - **Gravity strength:** from 0× (off) to 3×. It takes effect straight away, even mid-round, so students can repeat the same shot under different gravity. Planet masses don't change; only the strength of the pull does. The **Gravity** button in the header shows the current value and opens this setting.
@@ -53,12 +54,30 @@ A shot ends when it hits a planet or a ship, leaves the play area, or has flown 
 - **Planet labels:** each planet's density (ρ) and mass (M).
 - **Shot readout:** time, speed, gravity pull and closest approach to the target.
 
+## Achievements 🏆
+
+Trick shots earn achievements, which pop up as they happen. The 🏆 button in the header shows which have been earned, by whom and how many times. Once an achievement is earned, the list also shows a short explanation of the physics behind it. Achievements last for the session: they reset when the page is reloaded, or with the reset button in the list.
+
+| | Achievement | How to earn it |
+|---|---|---|
+| 🎯 | **Deadshot** | Hit the enemy with your first shot on a new map. |
+| 🔄 | **Loop de loop** | Your shot goes all the way round a planet (any result). |
+| ☄️ | **Slingshot** | Swing at least 90° around one planet, then hit the enemy. |
+| 🦶 | **Shot myself in the… foot** | Gravity swings your shot back round and it hits your own ship. |
+| ⏳ | **Hang time** | Hit the enemy after more than 15 seconds in flight. |
+| 😅 | **Close shave** | Miss the enemy by less than 5 units (measured to the ship's hull). |
+| 🍎 | **Newton's First** | Hit the enemy with gravity switched off. |
+| 🎱 | **Pinball** | Hit the enemy after 3 or more bounces off the edges (Bounce mode). |
+
+The computer opponent can earn them too. One shot can earn several at once: a first-shot, three-bounce hit with gravity off earns Deadshot, Pinball and Newton's First together.
+
 ## Classroom ideas
 
 - **Gravity off:** set gravity to 0× and fire. The missile travels in a straight line at constant speed (Newton's first law).
 - **Same shot, different gravity:** fire, change gravity to 2×, then fire the identical angle and speed. What changed, and why?
 - **Density vs size:** turn on planet labels and find a big red planet and a small blue one with similar masses. Compare how they bend a shot.
 - **Force vs velocity:** turn on the arrows and watch a slingshot. The force points at the planet, not the way the missile is moving.
+- **Slingshot discussion:** why doesn't the missile speed up after swinging round a planet here, when real spacecraft gain speed from a gravity assist? (Here the planets are fixed in place; real planets are moving.)
 - **Record and refine:** students log each angle and speed they try, and the result, then explain how they corrected their aim.
 
 ## Credits
