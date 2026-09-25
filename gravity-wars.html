@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gravity Wars</title>
+<style>
+:root{
+  --bg:#05060d; --panel:#10131f; --panel2:#181c2c; --line:#2a3048;
+  --text:#e6e9f5; --muted:#8a91ad; --p1:#f4f4f8; --p2:#ff5cf0; --accent:#7aa2ff;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+button,select,input{font:inherit;color:inherit}
+button{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer}
+button:hover:not(:disabled){border-color:var(--accent)}
+button:disabled{opacity:.45;cursor:default}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;padding:8px 14px;
+  background:var(--panel);border-bottom:1px solid var(--line)}
+header h1{font-size:18px;margin:0;letter-spacing:.12em;font-weight:700}
+.scores{display:flex;align-items:center;gap:10px;font-weight:600;font-variant-numeric:tabular-nums}
+.scores .s{font-size:22px}
+.p1{color:var(--p1)} .p2{color:var(--p2)}
+.legend{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.legend .bar{width:120px;height:10px;border-radius:5px}
+.spacer{flex:1}
+.hbtns{display:flex;gap:6px;flex-wrap:wrap}
+#stage{flex:1;position:relative;min-height:0;display:flex;align-items:center;justify-content:center}
+canvas{display:block;background:#000;border:1px solid var(--line);border-radius:4px;touch-action:none}
+#overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;pointer-events:none}
+#overlay .box{pointer-events:auto;background:rgba(16,19,31,.94);border:1px solid var(--line);border-radius:14px;
+  padding:20px 28px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.6)}
+#overlay .msg{font-size:22px;font-weight:700;margin-bottom:14px}
+#controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;padding:10px 14px;
+  background:var(--panel);border-top:1px solid var(--line)}
+.turn{font-weight:700;padding:6px 12px;border-radius:8px;border:2px solid currentColor;min-width:130px;text-align:center}
+.ctl{display:flex;align-items:center;gap:8px}
+.ctl span.lbl{color:var(--muted);font-size:14px}
+.ctl input[type=text]{width:92px;background:#0a0c16;border:1px solid var(--line);border-radius:6px;padding:5px 6px;
+  font-size:18px;font-variant-numeric:tabular-nums;text-align:right}
+.ctl input[type=range]{width:170px;accent-color:var(--accent)}
+.fire{font-weight:800;letter-spacing:.1em;padding:8px 22px;font-size:16px;background:#3a1420;border-color:#ff5c7a}
+.fire:hover:not(:disabled){background:#57192b;border-color:#ff8aa0}
+#status{flex-basis:100%;font-size:14px;color:var(--muted);min-height:1.3em}
+dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:14px;
+  max-width:min(620px,94vw);max-height:90vh;padding:18px 22px}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+dialog h2{margin:0 0 10px}
+dialog h3{margin:16px 0 8px;font-size:15px;color:var(--accent);text-transform:uppercase;letter-spacing:.08em}
+dialog label.row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 0}
+dialog label.chk{display:flex;align-items:center;gap:10px;margin:8px 0}
+dialog select{background:#0a0c16;border:1px solid var(--line);border-radius:6px;padding:4px 6px}
+dialog input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
+dialog .note{font-size:13px;color:var(--muted);margin:2px 0 8px}
+dialog .btnrow{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap}
+dialog .primary{background:#1d2a55;border-color:var(--accent)}
+.help p,.help li{line-height:1.45}
+.help .flex{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+kbd{background:#0a0c16;border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:13px}
+@media (max-width:700px){
+  header h1{font-size:15px}
+  .ctl input[type=range]{width:110px}
+  .legend .bar{width:70px}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>GRAVITY WARS</h1>
+  <div class="scores">
+    <span class="p1" id="n0">Player 1</span><span class="s p1" id="s0">0</span>
+    <span style="color:var(--muted)">:</span>
+    <span class="s p2" id="s1">0</span><span class="p2" id="n1">Player 2</span>
+  </div>
+  <div class="legend">Density: low <div class="bar" id="legendBar"></div> high</div>
+  <div class="spacer"></div>
+  <div class="hbtns">
+    <button id="clearBtn" title="Remove old shot trails">Clear trails</button>
+    <button id="newBtn">New round</button>
+    <button id="settingsBtn">⚙ Settings</button>
+    <button id="helpBtn">? Help</button>
+  </div>
+</header>
+
+<div id="stage">
+  <canvas id="c"></canvas>
+  <div id="overlay"><div class="box"><div class="msg" id="overMsg"></div><button id="nextBtn" class="primary">Next round ▶</button></div></div>
+</div>
+
+<div id="controls">
+  <div class="turn" id="turn">Player 1</div>
+  <label class="ctl"><span class="lbl">Angle</span>
+    <input id="angleNum" type="text" inputmode="decimal" autocomplete="off" title="Type an angle, e.g. 37.25"><span>°</span>
+    <input id="angleRange" type="range" tabindex="-1" min="0" max="360" step="0.5">
+  </label>
+  <label class="ctl"><span class="lbl">Speed</span>
+    <input id="speedNum" type="text" inputmode="decimal" autocomplete="off" title="Type a speed, e.g. 42.5">
+    <input id="speedRange" type="range" tabindex="-1" min="0" max="100" step="0.5">
+  </label>
+  <button id="fireBtn" class="fire">FIRE</button>
+  <div id="status"></div>
+</div>
+
+<dialog id="settingsDlg">
+  <h2>Settings</h2>
+  <h3>Game</h3>
+  <label class="row">Opponent
+    <select data-k="opponent">
+      <option value="human">Two players (take turns)</option>
+      <option value="computer">Computer</option>
+    </select></label>
+  <label class="row">Computer skill
+    <select data-k="aiLevel">
+      <option value="easy">Easy</option>
+      <option value="medium">Medium</option>
+      <option value="hard">Hard</option>
+    </select></label>
+  <label class="row">Number of planets
+    <span><input type="range" min="1" max="5" step="1" data-k="planets" data-num> <b id="planetsLbl"></b></span></label>
+  <p class="note">Planets are always random, so this only sets a rough range. It applies from the next round.</p>
+  <label class="row">Screen edges
+    <select data-k="edges">
+      <option value="open">Open space (shots can come back)</option>
+      <option value="vanish">Vanish at the edge</option>
+      <option value="bounce">Bounce off the edge</option>
+      <option value="wrap">Wrap around</option>
+    </select></label>
+  <label class="row">Trails
+    <select data-k="trails">
+      <option value="all">Keep every shot this round</option>
+      <option value="last">Last shot per player</option>
+      <option value="off">Only the most recent shot</option>
+    </select></label>
+  <label class="row">Animation speed
+    <select data-k="anim">
+      <option value="slow">Slow</option>
+      <option value="normal">Normal</option>
+      <option value="fast">Fast</option>
+    </select></label>
+
+  <h3>Teaching overlays</h3>
+  <label class="chk"><input type="checkbox" data-k="fieldArrows"> Gravity field arrows (direction and strength of pull)</label>
+  <label class="chk"><input type="checkbox" data-k="fieldMap"> Gravity strength map (brighter = stronger pull)</label>
+  <label class="chk"><input type="checkbox" data-k="shotVectors"> Velocity &amp; force arrows on the shot in flight</label>
+  <label class="chk"><input type="checkbox" data-k="planetInfo"> Planet density (ρ) and mass (M) labels</label>
+  <label class="chk"><input type="checkbox" data-k="readout"> Shot readout (time, speed, gravity pull, closest approach)</label>
+
+  <div class="btnrow">
+    <button id="resetScores">Reset scores</button>
+    <button id="applyNew">Start new round</button>
+    <button id="closeSettings" class="primary">Done</button>
+  </div>
+</dialog>
+
+<dialog id="helpDlg" class="help">
+  <h2>How to play</h2>
+  <p>Each player has a ship. Take turns firing at the other ship. Every planet pulls on your shot, so it curves. Hit the enemy ship to win the round.</p>
+  <div class="flex">
+    <svg width="150" height="150" viewBox="-75 -75 150 150" aria-label="Angle compass">
+      <circle r="45" fill="none" stroke="#2a3048" stroke-width="2"/>
+      <g stroke="#7aa2ff" stroke-width="2">
+        <line x1="0" y1="0" x2="45" y2="0"/><line x1="0" y1="0" x2="0" y2="-45"/>
+        <line x1="0" y1="0" x2="-45" y2="0"/><line x1="0" y1="0" x2="0" y2="45"/>
+      </g>
+      <circle r="5" fill="#5dff8a"/>
+      <g fill="#e6e9f5" font-size="13" text-anchor="middle" font-family="system-ui">
+        <text x="62" y="5">0°</text><text x="0" y="-52">90°</text>
+        <text x="-62" y="5">180°</text><text x="0" y="62">270°</text>
+      </g>
+    </svg>
+    <div style="flex:1;min-width:240px">
+      <p><b>Angle</b> is measured anticlockwise from the right. 0° is right, 90° is up, 180° is left and 270° is down. This is the same for both players.</p>
+      <p><b>Speed</b> (0–100) is how fast the shot leaves your ship.</p>
+    </div>
+  </div>
+  <h3>Planets</h3>
+  <p>Colour shows <b>density</b>: <span style="color:hsl(0,85%,60%)">red = low density</span>, then <span style="color:hsl(30,85%,60%)">orange</span>, <span style="color:hsl(60,85%,55%)">yellow</span>, <span style="color:hsl(120,85%,55%)">green</span>, <span style="color:hsl(180,85%,55%)">cyan</span>, up to <span style="color:hsl(240,85%,72%)">blue = high density</span>.
+  Mass = density × radius³, so <b>size and colour both matter</b>. A big red planet can pull about as hard as a small blue one. Gravity gets weaker with the square of the distance.</p>
+  <h3>Controls</h3>
+  <ul>
+    <li>Click a box and type a value (decimals like <b>37.25</b> are fine), or drag the sliders. Then press <b>FIRE</b> or <kbd>Enter</kbd>. <kbd>Tab</kbd> jumps from angle to speed.</li>
+    <li>Keyboard: <kbd>←</kbd>/<kbd>→</kbd> change the angle and <kbd>↑</kbd>/<kbd>↓</kbd> change the speed. Hold <kbd>Shift</kbd> for steps of 10 (angle) or 5 (speed), or <kbd>Ctrl</kbd> for steps of 0.1.</li>
+    <li>While a shot is flying, press <kbd>Enter</kbd> or <b>Skip</b> to jump to the end.</li>
+    <li>Your old trails stay on screen, so use them to adjust your next shot.</li>
+  </ul>
+  <p style="color:var(--muted);font-size:13px">A shot ends when it hits a planet or a ship, leaves the play area, or has flown for 25 seconds. You can hit your own ship, so be careful!</p>
+  <div class="btnrow"><button id="closeHelp" class="primary">Let's play</button></div>
+</dialog>
+
+<script>
+(() => {
+'use strict';
+// ---------- constants ----------
+const W = 1200, H = 800;          // world size (game units = pixels at 1:1)
+const G = 5;                      // gravitational constant (tuned for play)
+const DT = 1 / 240;               // physics timestep (s)
+const MAX_T = 25;                 // shot time limit (s)
+const SPEED_SCALE = 4;            // speed input 1 -> 4 units/s
+const SHIP_R = 15;
+const R_MIN = 14;
+const LEVELS = {1:{n:[1,3],rMax:75}, 2:{n:[3,5],rMax:66}, 3:{n:[5,7],rMax:56}, 4:{n:[7,9],rMax:48}, 5:{n:[9,12],rMax:42}};
+const LEVEL_NAMES = {1:'Very few', 2:'Few', 3:'Some', 4:'Many', 5:'Lots'};
+const PCOL = ['#f4f4f8', '#ff5cf0'];   // white & magenta: colours planets never use
+const ANIM_STEPS = {slow:3, normal:6, fast:24};
+const DEFAULTS = {opponent:'human', aiLevel:'medium', planets:3, edges:'open', trails:'all', anim:'normal',
+  fieldArrows:false, fieldMap:false, shotVectors:false, planetInfo:false, readout:true};
+
+let settings = loadSettings();
+function loadSettings(){
+  try { return Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem('gw-settings') || '{}')); }
+  catch(e){ return Object.assign({}, DEFAULTS); }
+}
+function saveSettings(){ try { localStorage.setItem('gw-settings', JSON.stringify(settings)); } catch(e){} }
+
+// ---------- state ----------
+let planets = [], ships = [], shots = [], live = null, particles = [];
+let score = [0,0], current = 0, starter = 1, state = 'aim', aiShots = 0, roundId = 0;
+let aim = [{a:20, s:40}, {a:160, s:40}];
+let fieldMapCanvas = null, fieldArrows = [], lastInfo = null;
+const RO_W = 212, RO_H = 98;
+let readoutPos = [10, 10];
+
+// ---------- helpers ----------
+const $ = id => document.getElementById(id);
+const rand = (a,b) => a + Math.random()*(b-a);
+const randInt = (a,b) => Math.floor(rand(a, b+1));
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+const round1 = v => Math.round(v*10)/10;
+const round2 = v => Math.round(v*100)/100;
+const parseNum = v => parseFloat(String(v).trim().replace(',', '.'));
+function gauss(){ let u=0,v=0; while(!u)u=Math.random(); while(!v)v=Math.random(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
+function densityColor(d, l=55){ const t = clamp((d-1)/4, 0, 1); return `hsl(${240*t},85%,${l}%)`; } // red -> orange -> yellow -> green -> cyan -> blue
+function name(i){ return i === 0 ? 'Player 1' : (settings.opponent === 'computer' ? 'Computer' : 'Player 2'); }
+const isAI = i => i === 1 && settings.opponent === 'computer';
+
+// ---------- physics ----------
+function accelAt(x, y){
+  let ax = 0, ay = 0;
+  for (const p of planets){
+    const dx = p.x - x, dy = p.y - y;
+    const d2 = dx*dx + dy*dy, d = Math.sqrt(d2) || 1;
+    const a = G * p.m / Math.max(d2, p.r*p.r);
+    ax += a*dx/d; ay += a*dy/d;
+  }
+  return [ax, ay];
+}
+
+function newShot(pi, angleDeg, speed, record){
+  const sh = ships[pi], th = angleDeg*Math.PI/180, v = speed*SPEED_SCALE;
+  const ux = Math.cos(th), uy = -Math.sin(th);           // screen y points down
+  const x = sh.x + ux*(SHIP_R+2), y = sh.y + uy*(SHIP_R+2);
+  return {owner:pi, x, y, vx:ux*v, vy:uy*v, a:accelAt(x,y), t:0, n:0, armed:false,
+    done:false, result:null, hit:-1, minD:Infinity, path: record ? [[x,y]] : null};
+}
+
+function stepShot(s){
+  const ax = s.a[0], ay = s.a[1];
+  s.x += s.vx*DT + 0.5*ax*DT*DT;
+  s.y += s.vy*DT + 0.5*ay*DT*DT;
+  let broke = false;
+  switch (settings.edges){
+    case 'wrap':
+      if (s.x < 0){ s.x += W; broke = true; } else if (s.x >= W){ s.x -= W; broke = true; }
+      if (s.y < 0){ s.y += H; broke = true; } else if (s.y >= H){ s.y -= H; broke = true; }
+      break;
+    case 'bounce':
+      if (s.x < 0){ s.x = -s.x; s.vx = -s.vx; } else if (s.x > W){ s.x = 2*W - s.x; s.vx = -s.vx; }
+      if (s.y < 0){ s.y = -s.y; s.vy = -s.vy; } else if (s.y > H){ s.y = 2*H - s.y; s.vy = -s.vy; }
+      break;
+    case 'vanish':
+      if (s.x < 0 || s.x > W || s.y < 0 || s.y > H){ s.done = true; s.result = 'edge'; }
+      break;
+    default:
+      if (s.x < -W || s.x > 2*W || s.y < -H || s.y > 2*H){ s.done = true; s.result = 'lost'; }
+  }
+  const a2 = accelAt(s.x, s.y);
+  s.vx += 0.5*(ax + a2[0])*DT; s.vy += 0.5*(ay + a2[1])*DT;
+  s.a = a2; s.t += DT; s.n++;
+  if (s.path){
+    if (broke) s.path.push(null);
+    if (broke || s.n % 2 === 0 || s.done) s.path.push([s.x, s.y]);
+  }
+  const tg = ships[1 - s.owner], td = Math.hypot(s.x - tg.x, s.y - tg.y);
+  if (td < s.minD) s.minD = td;
+  if (s.done) return;
+  for (let i = 0; i < planets.length; i++){
+    const p = planets[i], dx = s.x - p.x, dy = s.y - p.y;
+    if (dx*dx + dy*dy < p.r*p.r){ s.done = true; s.result = 'planet'; s.hit = i; return; }
+  }
+  for (let i = 0; i < 2; i++){
+    if (i === s.owner && !s.armed) continue;
+    const dx = s.x - ships[i].x, dy = s.y - ships[i].y;
+    if (dx*dx + dy*dy < (SHIP_R+1)*(SHIP_R+1)){ s.done = true; s.result = 'ship'; s.hit = i; if (s.path) s.path.push([s.x,s.y]); return; }
+  }
+  if (!s.armed && Math.hypot(s.x - ships[s.owner].x, s.y - ships[s.owner].y) > SHIP_R*3) s.armed = true;
+  if (s.t >= MAX_T){ s.done = true; s.result = 'timeout'; }
+}
+
+// ---------- round generation ----------
+function makeRound(){
+  ships = [
+    {x: rand(50, W*0.22),   y: rand(80, H-80)},
+    {x: rand(W*0.78, W-50), y: rand(80, H-80)}
+  ];
+  const L = LEVELS[settings.planets] || LEVELS[3];
+  const n = randInt(L.n[0], L.n[1]);
+  planets = [];
+  let tries = 0;
+  while (planets.length < n && tries < 5000){
+    tries++;
+    const r = R_MIN + (L.rMax - R_MIN)*Math.pow(Math.random(), 1.3);
+    const x = rand(r+15, W-r-15), y = rand(r+15, H-r-15);
+    if (ships.some(s => Math.hypot(s.x-x, s.y-y) < r + 55)) continue;
+    if (planets.some(p => Math.hypot(p.x-x, p.y-y) < p.r + r + 25)) continue;
+    const d = round1(rand(1, 5));
+    planets.push({x, y, r, d, m: d*r*r*r});
+  }
+  buildField();
+  // put the readout box in the corner that overlaps planets/ships the least
+  const corners = [[10, 10], [W-RO_W-10, 10], [10, H-RO_H-10], [W-RO_W-10, H-RO_H-10]];
+  const overlap = ([x, y]) => {
+    let o = 0;
+    const hitsBox = (cx, cy, r) => {
+      const nx = clamp(cx, x, x+RO_W), ny = clamp(cy, y, y+RO_H);
+      return Math.hypot(cx-nx, cy-ny) < r;
+    };
+    for (const p of planets) if (hitsBox(p.x, p.y, p.r + 20)) o += p.r;
+    for (const s of ships) if (hitsBox(s.x, s.y, 30)) o += 1000;
+    return o;
+  };
+  readoutPos = corners.reduce((b, c) => overlap(c) < overlap(b) ? c : b);
+}
+
+function buildField(){
+  const cell = 4, w = W/cell, h = H/cell;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d'), img = g.createImageData(w, h);
+  const lo = Math.log10(2), hi = Math.log10(2000), bands = 12;
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++){
+    const a = accelAt((i+.5)*cell, (j+.5)*cell), m = Math.hypot(a[0], a[1]);
+    let v = clamp((Math.log10(m + 1e-9) - lo)/(hi - lo), 0, 1);
+    v = Math.floor(v*bands)/bands;                     // banding reads like contour lines
+    const k = (j*w + i)*4;
+    img.data[k] = 40 + v*90; img.data[k+1] = 70 + v*170; img.data[k+2] = 160 + v*95; img.data[k+3] = v*170;
+  }
+  g.putImageData(img, 0, 0);
+  fieldMapCanvas = c;
+  fieldArrows = [];
+  for (let y = 20; y < H; y += 40) for (let x = 20; x < W; x += 40){
+    if (planets.some(p => Math.hypot(p.x-x, p.y-y) < p.r + 6)) continue;
+    const a = accelAt(x, y), m = Math.hypot(a[0], a[1]);
+    if (m < 0.3) continue;
+    fieldArrows.push({x, y, ux:a[0]/m, uy:a[1]/m, L: clamp(5 + 5*Math.log10(m/2), 4, 19), m});
+  }
+}
+
+// ---------- stars ----------
+const stars = document.createElement('canvas'); stars.width = W; stars.height = H;
+(() => {
+  const g = stars.getContext('2d');
+  for (let i = 0; i < 320; i++){
+    const b = Math.random();
+    g.fillStyle = `rgba(255,255,255,${0.15 + b*0.6})`;
+    const s = b > 0.93 ? 2 : 1;
+    g.fillRect(Math.random()*W, Math.random()*H, s, s);
+  }
+})();
+
+// ---------- rendering ----------
+const canvas = $('c'), ctx = canvas.getContext('2d');
+let scale = 1;
+function resize(){
+  const r = $('stage').getBoundingClientRect(), pad = 10;
+  let w = r.width - pad*2, h = r.height - pad*2;
+  if (w <= 0 || h <= 0) return;
+  if (w/h > W/H) w = h*W/H; else h = w*H/W;
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.round(w*dpr); canvas.height = Math.round(h*dpr);
+  scale = canvas.width / W;
+}
+
+function arrow(x, y, dx, dy, col, w){
+  const L = Math.hypot(dx, dy); if (L < 1) return;
+  ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = w;
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x+dx, y+dy); ctx.stroke();
+  const ux = dx/L, uy = dy/L, hd = Math.min(8, L*0.45);
+  ctx.beginPath();
+  ctx.moveTo(x+dx, y+dy);
+  ctx.lineTo(x+dx - ux*hd - uy*hd*0.55, y+dy - uy*hd + ux*hd*0.55);
+  ctx.lineTo(x+dx - ux*hd + uy*hd*0.55, y+dy - uy*hd - ux*hd*0.55);
+  ctx.closePath(); ctx.fill();
+}
+
+function drawPath(path, col, alpha, width){
+  if (!path || path.length < 2) return;
+  ctx.strokeStyle = col; ctx.globalAlpha = alpha; ctx.lineWidth = width;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  let pen = false;
+  for (const p of path){
+    if (!p){ pen = false; continue; }
+    if (!pen){ ctx.moveTo(p[0], p[1]); pen = true; } else ctx.lineTo(p[0], p[1]);
+  }
+  ctx.stroke(); ctx.globalAlpha = 1;
+}
+
+// ---------- ship graphics (top-down, nose along +x, rotated to the aim angle) ----------
+function ellipse(x, y, rx, ry){ ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke(); }
+function drawEnterprise(col){
+  ctx.lineWidth = 1.6; ctx.strokeStyle = col;              // nacelle pylons
+  ctx.beginPath(); ctx.moveTo(-6, -1.5); ctx.lineTo(-10, -6.5); ctx.moveTo(-6, 1.5); ctx.lineTo(-10, 6.5); ctx.stroke();
+  ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.lineWidth = 0.7;
+  for (const sy of [-1, 1]){
+    ctx.fillStyle = col;
+    ctx.fillRect(-19, sy*7.8 - 1.5, 14, 3); ctx.strokeRect(-19, sy*7.8 - 1.5, 14, 3);   // warp nacelles
+    ctx.fillStyle = '#ff7b54';                                                           // bussard collectors
+    ctx.beginPath(); ctx.arc(-5, sy*7.8, 1.4, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.fillStyle = col;
+  ellipse(-7, 0, 7, 2.8);                                   // engineering hull
+  ctx.fillRect(-1, -1.2, 4, 2.4);                           // neck
+  ellipse(6, 0, 8, 8);                                      // saucer
+  ctx.beginPath(); ctx.arc(6, 0, 5.5, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(6, 0, 2.4, 0, Math.PI*2); ctx.stroke();   // bridge
+}
+function drawBirdOfPrey(col){
+  ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.lineWidth = 0.7; ctx.fillStyle = col;
+  for (const sy of [-1, 1]){
+    ctx.beginPath();                                        // forward-swept wings
+    ctx.moveTo(-1, sy*3); ctx.lineTo(4, sy*14); ctx.lineTo(1, sy*15.5);
+    ctx.lineTo(-10, sy*6); ctx.lineTo(-9, sy*2.5); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillRect(2, sy*14.6 - 1, 6, 2);                     // wingtip disruptors
+    ctx.beginPath(); ctx.moveTo(-2, sy*4.5); ctx.lineTo(2, sy*12); ctx.stroke();
+  }
+  ellipse(-4, 0, 7, 4.5);                                   // main body
+  ctx.beginPath(); ctx.moveTo(-10, -2); ctx.lineTo(-14.5, 0); ctx.lineTo(-10, 2); ctx.closePath(); ctx.fill(); ctx.stroke();  // tail
+  ctx.fillRect(2, -1.3, 8, 2.6);                            // neck
+  ellipse(11.5, 0, 4, 3);                                   // command pod
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath(); ctx.arc(12.5, 0, 1.1, 0, Math.PI*2); ctx.fill();  // cockpit light
+}
+function drawShip(i, x, y, angDeg){
+  ctx.save();
+  ctx.translate(x, y); ctx.rotate(-angDeg*Math.PI/180); ctx.scale(1.4, 1.4);
+  if (i === 0) drawEnterprise(PCOL[i]); else drawBirdOfPrey(PCOL[i]);
+  ctx.restore();
+}
+
+function render(now){
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  ctx.drawImage(stars, 0, 0, W, H);
+
+  if (settings.fieldMap && fieldMapCanvas){
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(fieldMapCanvas, 0, 0, W, H);
+  }
+  if (settings.fieldArrows){
+    for (const f of fieldArrows){
+      const a = clamp(0.25 + 0.15*Math.log10(f.m), 0.25, 0.8);
+      arrow(f.x - f.ux*f.L/2, f.y - f.uy*f.L/2, f.ux*f.L, f.uy*f.L, `rgba(150,190,255,${a})`, 1.3);
+    }
+  }
+
+  // trails
+  const latest = [-1, -1];
+  shots.forEach((s, i) => latest[s.owner] = i);
+  shots.forEach((s, i) => {
+    const recent = i === latest[s.owner];
+    drawPath(s.path, PCOL[s.owner], recent ? 0.85 : 0.28, recent ? 1.6 : 1.2);
+    if (s.result !== 'ship' && s.end){
+      ctx.strokeStyle = PCOL[s.owner]; ctx.globalAlpha = recent ? 0.9 : 0.35; ctx.lineWidth = 1.5;
+      const [x, y] = s.end, k = 4;
+      ctx.beginPath(); ctx.moveTo(x-k, y-k); ctx.lineTo(x+k, y+k); ctx.moveTo(x+k, y-k); ctx.lineTo(x-k, y+k); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+  });
+  if (live) drawPath(live.path, PCOL[live.owner], 1, 2);
+
+  // planets
+  for (const p of planets){
+    const g = ctx.createRadialGradient(p.x - p.r*.35, p.y - p.r*.35, p.r*.1, p.x, p.y, p.r);
+    g.addColorStop(0, densityColor(p.d, 74));
+    g.addColorStop(1, densityColor(p.d, 38));
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+  }
+  if (settings.planetInfo){
+    ctx.font = '600 13px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    for (const p of planets){
+      const t1 = `ρ ${p.d.toFixed(1)}   M ${Math.round(p.m/1000)}`;
+      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.85)';
+      ctx.strokeText(t1, p.x, p.y + p.r + 5);
+      ctx.fillStyle = '#e6e9f5'; ctx.fillText(t1, p.x, p.y + p.r + 5);
+    }
+  }
+
+  // ships
+  ctx.font = '700 12px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+  ships.forEach((s, i) => {
+    if (state === 'over' && lastInfo && lastInfo.destroyed === i) return;
+    const active = i === current && (state === 'aim' || state === 'ai');
+    if (active){
+      const pr = 28 + Math.sin(now/250)*2;
+      ctx.strokeStyle = PCOL[i]; ctx.globalAlpha = 0.4; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(s.x, s.y, pr, 0, Math.PI*2); ctx.stroke(); ctx.globalAlpha = 1;
+    }
+    drawShip(i, s.x, s.y, aim[i].a);
+    ctx.fillStyle = PCOL[i];
+    ctx.fillText(i === 0 ? 'P1' : (isAI(1) ? 'CPU' : 'P2'), s.x, s.y - 31);
+  });
+
+  // aim guide
+  if (state === 'aim' || state === 'ai'){
+    const s = ships[current], A = aim[current], th = A.a*Math.PI/180;
+    const len = 40 + A.s*1.1, ux = Math.cos(th), uy = -Math.sin(th);
+    ctx.setLineDash([5, 5]);
+    ctx.strokeStyle = PCOL[current]; ctx.globalAlpha = 0.8; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(s.x + ux*29, s.y + uy*29); ctx.lineTo(s.x + ux*len, s.y + uy*len); ctx.stroke();
+    ctx.setLineDash([]);
+    arrow(s.x + ux*(len-1), s.y + uy*(len-1), ux*1.5, uy*1.5, PCOL[current], 1.5);
+    ctx.globalAlpha = 1;
+  }
+
+  // live shot
+  if (live){
+    const onScreen = live.x >= 0 && live.x <= W && live.y >= 0 && live.y <= H;
+    if (onScreen){
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(live.x, live.y, 2.5, 0, Math.PI*2); ctx.fill();
+      if (settings.shotVectors){
+        // faint lines to each planet, thickness/alpha ~ that planet's share of the pull
+        const pulls = planets.map(p => G*p.m / Math.max((p.x-live.x)**2 + (p.y-live.y)**2, p.r*p.r));
+        const tot = pulls.reduce((a, b) => a + b, 0) || 1;
+        planets.forEach((p, i) => {
+          const f = pulls[i]/tot; if (f < 0.03) return;
+          ctx.strokeStyle = `rgba(110,231,255,${0.1 + f*0.5})`; ctx.lineWidth = 0.5 + f*3;
+          ctx.beginPath(); ctx.moveTo(live.x, live.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+        });
+        const v = Math.hypot(live.vx, live.vy);
+        arrow(live.x, live.y, live.vx*0.22, live.vy*0.22, '#ffffff', 2);
+        const am = Math.hypot(live.a[0], live.a[1]);
+        if (am > 0.5){
+          const L = clamp(10 + 22*Math.log10(am/2), 6, 95);
+          arrow(live.x, live.y, live.a[0]/am*L, live.a[1]/am*L, '#6ee7ff', 2);
+          ctx.font = '700 13px system-ui'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+          ctx.fillStyle = '#6ee7ff'; ctx.fillText('F', live.x + live.a[0]/am*(L+8) - 4, live.y + live.a[1]/am*(L+8));
+        }
+        if (v > 5){
+          ctx.fillStyle = '#fff'; ctx.font = '700 13px system-ui'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+          ctx.fillText('v', live.x + live.vx*0.22 + live.vx/v*8 - 3, live.y + live.vy*0.22 + live.vy/v*8);
+        }
+      }
+    } else {
+      // off-screen marker
+      const x = clamp(live.x, 10, W-10), y = clamp(live.y, 10, H-10);
+      const dx = live.x - x, dy = live.y - y, L = Math.hypot(dx, dy) || 1;
+      ctx.globalAlpha = 0.9;
+      arrow(x - dx/L*12, y - dy/L*12, dx/L*10, dy/L*10, PCOL[live.owner], 2);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // particles
+  for (const p of particles){
+    ctx.globalAlpha = clamp(p.life/p.max, 0, 1);
+    ctx.fillStyle = p.col; ctx.fillRect(p.x - 1.5, p.y - 1.5, 3, 3);
+  }
+  ctx.globalAlpha = 1;
+
+  // readout
+  if (settings.readout && (live || lastInfo)){
+    let t, v, a, md, title;
+    if (live){ t = live.t; v = Math.hypot(live.vx, live.vy); a = Math.hypot(live.a[0], live.a[1]); md = live.minD; title = 'Shot in flight'; }
+    else { ({t, v, a, minD: md} = lastInfo); title = 'Last shot (' + name(lastInfo.owner) + ')'; }
+    const lines = [
+      title,
+      `Time            ${t.toFixed(1)} s`,
+      `Speed           ${(v/SPEED_SCALE).toFixed(1)}`,
+      `Gravity pull    ${(a/SPEED_SCALE).toFixed(1)}`,
+      `Closest to target  ${isFinite(md) ? Math.round(md) : '–'}`
+    ];
+    const [bx, by] = readoutPos;
+    ctx.font = '13px ui-monospace, Consolas, monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillStyle = 'rgba(10,12,22,.8)'; ctx.strokeStyle = '#2a3048'; ctx.lineWidth = 1;
+    ctx.fillRect(bx, by, RO_W, RO_H); ctx.strokeRect(bx, by, RO_W, RO_H);
+    lines.forEach((l, i) => {
+      ctx.fillStyle = i === 0 ? PCOL[live ? live.owner : lastInfo.owner] : '#c9cee3';
+      ctx.fillText(l, bx + 8, by + 7 + i*18);
+    });
+  }
+}
+
+// ---------- effects ----------
+function burst(x, y, col, n, sp){
+  for (let i = 0; i < n; i++){
+    const a = rand(0, Math.PI*2), v = rand(15, sp), life = rand(0.4, 1.3);
+    particles.push({x, y, vx:Math.cos(a)*v, vy:Math.sin(a)*v, life, max:life, col});
+  }
+}
+
+// ---------- game flow ----------
+function nextRound(){
+  roundId++;
+  starter = 1 - starter; current = starter;
+  makeRound();
+  shots = []; live = null; lastInfo = null; aiShots = 0; particles = [];
+  state = 'aim';
+  $('overlay').style.display = 'none';
+  setStatus(`New round: ${name(current)} fires first.`);
+  syncInputs(); updateUI(); maybeAI();
+}
+
+function fire(){
+  if (state !== 'aim' && state !== 'ai') return;
+  const A = aim[current];
+  if (settings.trails === 'off') shots = [];
+  live = newShot(current, A.a, A.s, true);
+  lastInfo = null;
+  state = 'flying';
+  setStatus(`${name(current)} fires: angle ${A.a}°, speed ${A.s}`);
+  updateUI();
+}
+
+function skip(){ if (live) while (!live.done) stepShot(live); }
+
+function endShot(){
+  const s = live; live = null;
+  if (settings.trails === 'last') shots = shots.filter(x => x.owner !== s.owner);
+  shots.push({owner:s.owner, path:s.path, end:[s.x, s.y], result:s.result});
+  lastInfo = {owner:s.owner, t:s.t, v:Math.hypot(s.vx, s.vy), a:Math.hypot(s.a[0], s.a[1]), minD:s.minD, destroyed:-1};
+  const who = name(s.owner), tgt = name(1 - s.owner), secs = s.t.toFixed(1);
+  const close = `Closest approach to ${tgt}: ${Math.round(s.minD)}.`;
+  const A = aim[s.owner];
+  const tag = `[${A.a}°, speed ${A.s}] `;
+  if (s.result === 'ship'){
+    const winner = s.hit === s.owner ? 1 - s.owner : s.owner;
+    score[winner]++;
+    lastInfo.destroyed = s.hit;
+    burst(ships[s.hit].x, ships[s.hit].y, PCOL[s.hit], 90, 240);
+    burst(ships[s.hit].x, ships[s.hit].y, '#ffffff', 40, 140);
+    state = 'over';
+    $('overMsg').textContent = s.hit === s.owner
+      ? `${who} hit their own ship! Point to ${name(winner)}.`
+      : `${who} hits ${tgt}!`;
+    $('overMsg').style.color = PCOL[winner];
+    $('overlay').style.display = 'flex';
+    setStatus(tag + `Hit after ${secs} s.`);
+    updateUI();
+    return;
+  }
+  const what = {
+    planet: `crashed into a planet after ${secs} s.`,
+    edge: `flew off the edge after ${secs} s.`,
+    lost: `drifted off into deep space after ${secs} s.`,
+    timeout: `was still flying after ${MAX_T} s and burned out.`
+  }[s.result];
+  if (s.result === 'planet') burst(s.x, s.y, '#ffffff', 18, 70);
+  setStatus(`${tag}${who}'s shot ${what} ${close}`);
+  current = 1 - current;
+  state = 'aim';
+  syncInputs(); updateUI(); maybeAI();
+}
+
+// ---------- computer opponent ----------
+function aiChoose(pi){
+  const me = ships[pi], tg = ships[1 - pi];
+  const evalShot = (a, s) => {
+    const sh = newShot(pi, a, s, false);
+    while (!sh.done) stepShot(sh);
+    if (sh.result === 'ship') return sh.hit === pi ? 1e9 : 0;
+    return sh.minD;
+  };
+  const direct = Math.atan2(-(tg.y - me.y), tg.x - me.x)*180/Math.PI;
+  let pool = [];
+  for (let i = 0; i < 260; i++){
+    const a = i < 70 ? direct + gauss()*30 : rand(0, 360), s = rand(12, 100);
+    pool.push({a, s, sc: evalShot(a, s)});
+  }
+  pool.sort((x, y) => x.sc - y.sc);
+  let best = pool.slice(0, 6);
+  for (const [sa, ss] of [[10, 10], [3, 3], [0.8, 0.8]]){
+    const next = [];
+    for (const b of best){
+      next.push(b);
+      if (b.sc === 0) continue;
+      for (let k = 0; k < 22; k++){
+        const a = b.a + gauss()*sa, s = clamp(b.s + gauss()*ss, 5, 100);
+        next.push({a, s, sc: evalShot(a, s)});
+      }
+    }
+    next.sort((x, y) => x.sc - y.sc);
+    best = next.slice(0, 4);
+  }
+  const b = best[0];
+  const lv = {easy:[8, 7, 1.5], medium:[3.5, 3, 0.5], hard:[1.2, 1, 0.12]}[settings.aiLevel] || [3.5, 3, 0.5];
+  const f = Math.max(lv[2]/lv[0], Math.pow(0.65, aiShots)); // gets more accurate as the round goes on
+  aiShots++;
+  const a = ((b.a + gauss()*lv[0]*f) % 360 + 360) % 360;
+  const s = clamp(b.s + gauss()*lv[1]*f, 1, 100);
+  return {a: round1(a), s: round1(s)};
+}
+
+function maybeAI(){
+  if (state !== 'aim' || !isAI(current)) return;
+  state = 'ai'; updateUI();
+  setStatus((($('status').textContent) ? $('status').textContent + '  ' : '') + 'Computer is thinking…');
+  const rid = roundId;
+  setTimeout(() => {
+    if (rid !== roundId || state !== 'ai') return;
+    const choice = aiChoose(current);
+    const from = {a: aim[current].a, s: aim[current].s}, t0 = performance.now(), dur = 700;
+    const tick = () => {
+      if (rid !== roundId || state !== 'ai') return;
+      const k = Math.min(1, (performance.now() - t0)/dur), e = k*k*(3 - 2*k);
+      aim[current].a = round1(from.a + (choice.a - from.a)*e);
+      aim[current].s = round1(from.s + (choice.s - from.s)*e);
+      syncInputs();
+      if (k < 1) requestAnimationFrame(tick);
+      else setTimeout(() => { if (rid === roundId && state === 'ai') fire(); }, 250);
+    };
+    tick();
+  }, 450);
+}
+
+// ---------- UI ----------
+const angleNum = $('angleNum'), angleRange = $('angleRange'), speedNum = $('speedNum'), speedRange = $('speedRange');
+function syncInputs(){
+  const A = aim[current];
+  angleNum.value = A.a; angleRange.value = A.a; speedNum.value = A.s; speedRange.value = A.s;
+}
+function setAngle(v){
+  v = parseNum(v); if (!isFinite(v)) v = aim[current].a;
+  v = round2(((v % 360) + 360) % 360);
+  aim[current].a = v; syncInputs();
+}
+function setSpeed(v){
+  v = parseNum(v); if (!isFinite(v)) v = aim[current].s;
+  aim[current].s = round2(clamp(v, 0, 100)); syncInputs();
+}
+function setStatus(t){ $('status').textContent = t; }
+function updateUI(){
+  const t = $('turn');
+  t.textContent = state === 'over' ? 'Round over' : `${name(current)}'s turn`;
+  t.style.color = state === 'over' ? 'var(--muted)' : PCOL[current];
+  const canAim = state === 'aim';
+  [angleNum, angleRange, speedNum, speedRange].forEach(el => el.disabled = !canAim);
+  const fb = $('fireBtn');
+  fb.textContent = state === 'flying' ? 'SKIP ▶▶' : 'FIRE';
+  fb.disabled = !(state === 'aim' || state === 'flying');
+  $('s0').textContent = score[0]; $('s1').textContent = score[1];
+  $('n1').textContent = name(1);
+}
+
+angleNum.addEventListener('change', () => setAngle(angleNum.value));
+speedNum.addEventListener('change', () => setSpeed(speedNum.value));
+// live update of the aim guide while typing (the box itself is tidied on change/Enter)
+angleNum.addEventListener('input', () => { const v = parseNum(angleNum.value); if (isFinite(v)){ aim[current].a = round2(((v % 360) + 360) % 360); angleRange.value = aim[current].a; } });
+speedNum.addEventListener('input', () => { const v = parseNum(speedNum.value); if (isFinite(v)){ aim[current].s = round2(clamp(v, 0, 100)); speedRange.value = aim[current].s; } });
+[angleNum, speedNum].forEach(el => {
+  el.addEventListener('focus', () => el.select());
+  el.addEventListener('mouseup', e => e.preventDefault());   // keep the select-all after clicking
+});
+angleRange.addEventListener('input', () => setAngle(angleRange.value));
+speedRange.addEventListener('input', () => setSpeed(speedRange.value));
+$('fireBtn').addEventListener('click', () => { if (state === 'flying') skip(); else if (state === 'aim') fire(); });
+$('nextBtn').addEventListener('click', nextRound);
+$('newBtn').addEventListener('click', nextRound);
+$('clearBtn').addEventListener('click', () => { shots = []; });
+
+window.addEventListener('keydown', e => {
+  if (document.querySelector('dialog[open]')) return;
+  const tag = e.target.tagName, isNum = e.target === angleNum || e.target === speedNum;
+  if (tag === 'BUTTON' || tag === 'SELECT') return;
+  if (e.key === 'Enter'){
+    e.preventDefault();
+    if (isNum) e.target.dispatchEvent(new Event('change'));
+    if (state === 'flying') skip();
+    else if (state === 'over') nextRound();
+    else if (state === 'aim') fire();
+    return;
+  }
+  if (tag === 'INPUT' || state !== 'aim') return;
+  const da = e.shiftKey ? 10 : e.ctrlKey ? 0.1 : 1, ds = e.shiftKey ? 5 : e.ctrlKey ? 0.1 : 1;
+  switch (e.key){
+    case 'ArrowLeft':  setAngle(aim[current].a - da); break;
+    case 'ArrowRight': setAngle(aim[current].a + da); break;
+    case 'ArrowUp':    setSpeed(aim[current].s + ds); break;
+    case 'ArrowDown':  setSpeed(aim[current].s - ds); break;
+    case ' ':          fire(); break;
+    default: return;
+  }
+  e.preventDefault();
+});
+
+// settings dialog
+const sDlg = $('settingsDlg');
+function refreshSettingsForm(){
+  sDlg.querySelectorAll('[data-k]').forEach(el => {
+    const k = el.dataset.k;
+    if (el.type === 'checkbox') el.checked = !!settings[k]; else el.value = settings[k];
+  });
+  $('planetsLbl').textContent = LEVEL_NAMES[settings.planets];
+}
+sDlg.querySelectorAll('[data-k]').forEach(el => {
+  el.addEventListener(el.type === 'range' ? 'input' : 'change', () => {
+    const k = el.dataset.k;
+    settings[k] = el.type === 'checkbox' ? el.checked : ('num' in el.dataset ? Number(el.value) : el.value);
+    saveSettings();
+    $('planetsLbl').textContent = LEVEL_NAMES[settings.planets];
+    if (k === 'opponent'){ updateUI(); maybeAI(); }
+  });
+});
+$('settingsBtn').addEventListener('click', () => { refreshSettingsForm(); sDlg.showModal(); });
+$('closeSettings').addEventListener('click', () => sDlg.close());
+$('applyNew').addEventListener('click', () => { sDlg.close(); nextRound(); });
+$('resetScores').addEventListener('click', () => { score = [0, 0]; updateUI(); });
+
+// help dialog
+const hDlg = $('helpDlg');
+$('helpBtn').addEventListener('click', () => hDlg.showModal());
+$('closeHelp').addEventListener('click', () => hDlg.close());
+
+// legend
+$('legendBar').style.background = `linear-gradient(90deg, ${[1,1.5,2,2.5,3,3.5,4,4.5,5].map(d => densityColor(d, 55)).join(',')})`;
+
+// ---------- main loop ----------
+let lastT = performance.now(), stepAcc = 0;
+function frame(now){
+  const dt = Math.min(0.05, (now - lastT)/1000); lastT = now;
+  if (state === 'flying' && live){
+    // time-based so the shot moves at the same pace on 60 Hz and 144 Hz screens
+    stepAcc += dt * 60 * (ANIM_STEPS[settings.anim] || 6);
+    const n = Math.floor(stepAcc); stepAcc -= n;
+    for (let i = 0; i < n && !live.done; i++) stepShot(live);
+    if (live.done) endShot();
+  }
+  for (const p of particles){ p.x += p.vx*dt; p.y += p.vy*dt; p.vx *= 0.985; p.vy *= 0.985; p.life -= dt; }
+  particles = particles.filter(p => p.life > 0);
+  render(now);
+  requestAnimationFrame(frame);
+}
+
+new ResizeObserver(resize).observe($('stage'));
+window.addEventListener('resize', resize);
+resize();
+nextRound();
+requestAnimationFrame(frame);
+
+let seen = false;
+try { seen = localStorage.getItem('gw-seen') === '1'; localStorage.setItem('gw-seen', '1'); } catch(e){}
+if (!seen) hDlg.showModal();
+})();
+</script>
+</body>
+</html>
