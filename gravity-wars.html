@@ -317,7 +317,7 @@ table.log tr.hit td{background:rgba(93,255,138,.07)}
     <li>While a shot is flying, press <kbd>Enter</kbd> or <b>Skip</b> to jump to the end.</li>
     <li>Your old trails stay on screen, so use them to adjust your next shot.</li>
   </ul>
-  <p style="color:var(--muted);font-size:13px">A shot ends when it hits a planet or a ship, leaves the play area, or has flown for 25 seconds. You can hit your own ship, so be careful!</p>
+  <p style="color:var(--muted);font-size:13px">A shot ends when it hits a planet or a ship, leaves the play area, or burns out: after 25 seconds if it's off-screen, or after 90 seconds even if it's still on screen. You can hit your own ship, so be careful!</p>
   <div class="btnrow"><button id="closeHelp" class="primary">Let's play</button></div>
 </dialog>
 
@@ -329,7 +329,8 @@ const W = 1200, H = 800;          // world size (game units = pixels at 1:1)
 const G_BASE = 5;                 // gravitational constant at 1x (tuned for play)
 let G = G_BASE;                   // G_BASE x the gravity-strength setting
 const DT = 1 / 240;               // physics timestep (s)
-const MAX_T = 25;                 // shot time limit (s)
+const MAX_T = 25;                 // a shot that is off-screen after this long burns out (s)
+const MAX_T_ONSCREEN = 90;        // hard limit even on screen, so a stable orbit can't fly for ever
 const SPEED_SCALE = 4;            // speed input 1 -> 4 units/s
 const SHIP_R = 15;
 const R_MIN = 14;
@@ -453,8 +454,8 @@ function newShot(pi, angleDeg, speed, record){
   const x = sh.x + ux*(SHIP_R+2), y = sh.y + uy*(SHIP_R+2);
   const angs = [aim[0].a, aim[1].a]; angs[pi] = angleDeg;   // ship headings for the hit test (as drawn)
   const track = record ? {turn:0, planetTurn:planets.map(() => 0), sweep:planets.map(() => 0), bounces:0} : null;
-  const selfSafe = !!(challenge && challenge.L.selfSafe);
-  return {owner:pi, x, y, vx:ux*v, vy:uy*v, a:accelAt(x,y), t:0, n:0, armed:false, angs, track, selfSafe,
+  const selfSafe = !!(challenge && challenge.L.selfSafe), stopOnLoop = !!(record && challenge && challenge.L.goalType === 'loop');
+  return {owner:pi, x, y, vx:ux*v, vy:uy*v, a:accelAt(x,y), t:0, n:0, armed:false, angs, track, selfSafe, stopOnLoop,
     done:false, result:null, hit:-1, minD:Infinity, path: record ? [[x,y]] : null};
 }
 
@@ -486,7 +487,11 @@ function stepShot(s){
   const vx0 = s.vx, vy0 = s.vy;
   s.vx += 0.5*(ax + a2[0])*DT; s.vy += 0.5*(ay + a2[1])*DT;
   s.a = a2; s.t += DT; s.n++;
-  if (s.track && !broke) trackStep(s, px, py, vx0, vy0);
+  if (s.track && !broke){
+    trackStep(s, px, py, vx0, vy0);
+    // orbit challenge: stop as soon as the lap is done rather than circling until the time limit
+    if (s.stopOnLoop && s.track.sweep.some(a => Math.abs(a) > Math.PI*2 + 0.05)){ s.done = true; s.result = 'orbit'; }
+  }
   if (s.path){
     if (broke) s.path.push(null);
     if (broke || s.n % 2 === 0 || s.done) s.path.push([s.x, s.y]);
@@ -517,7 +522,10 @@ function stepShot(s){
     }
   }
   if (!s.armed && Math.hypot(s.x - ships[s.owner].x, s.y - ships[s.owner].y) > SHIP_R*3) s.armed = true;
-  if (s.t >= MAX_T){ s.done = true; s.result = 'timeout'; }
+  // On-screen shots keep flying (they may still loop back to the target); the computer's practice
+  // shots (no track) keep the short limit so it still thinks quickly.
+  const offScreen = s.x < 0 || s.x > W || s.y < 0 || s.y > H;
+  if (s.t >= MAX_T && (!s.track || offScreen || s.t >= MAX_T_ONSCREEN)){ s.done = true; s.result = 'timeout'; }
 }
 
 // Achievement bookkeeping for one step: how far gravity turned the shot (in total, and while each
@@ -928,7 +936,8 @@ function endShot(){
     planet: `crashed into a planet after ${secs} s.`,
     edge: `flew off the edge after ${secs} s.`,
     lost: `drifted off into deep space after ${secs} s.`,
-    timeout: `was still flying after ${MAX_T} s and burned out.`
+    timeout: `was still flying after ${secs} s and burned out.`,
+    orbit: `completed an orbit after ${secs} s.`
   }[s.result];
   if (s.result === 'planet') burst(s.x, s.y, '#ffffff', 18, 70);
   setStatus(`${tag}${who}'s shot ${what} ${close}`);
@@ -1035,7 +1044,8 @@ function resultText(s){
     case 'planet':  return `Crashed into planet (ρ ${planets[s.hit].d.toFixed(1)})`;
     case 'edge':    return 'Flew off the edge';
     case 'lost':    return 'Lost in deep space';
-    default:        return `Burned out (${MAX_T} s)`;
+    case 'orbit':   return 'Completed an orbit';
+    default:        return `Burned out (${Math.round(s.t)} s)`;
   }
 }
 const angleChange = (a, b) => round2(((a - b + 540) % 360) - 180);
@@ -1386,7 +1396,7 @@ function challengeShotEnded(s, tag){
   const what = hitT ? `You hit the target, but ${L.goalFail}`
     : hitSelf ? 'You hit your own ship!'
     : {planet: `Crashed into a planet after ${secs} s.`, edge: `Flew off the edge after ${secs} s.`,
-       lost: `Drifted off into deep space after ${secs} s.`, timeout: `Still flying after ${MAX_T} s, so it burned out.`}[s.result];
+       lost: `Drifted off into deep space after ${secs} s.`, timeout: `Still flying after ${secs} s, so it burned out.`, orbit: 'Completed an orbit.'}[s.result];
   const close = L.goalType === 'loop' ? '' : ` Closest approach to the target: ${Math.round(s.minD)}.`;
   setStatus(tag + what + close + (C.misses >= 2 ? '  Stuck? Try the 💡 Hint.' : ''));
   state = 'aim';

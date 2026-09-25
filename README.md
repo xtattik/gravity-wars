@@ -22,7 +22,7 @@ Two ships sit in a field of planets. Players take turns firing a missile by choo
 | `Tab` | Jump from the angle box to the speed box. |
 | `←` `→` / `↑` `↓` | Adjust angle / speed by 1. Hold `Shift` for big steps or `Ctrl` for 0.1 steps. |
 
-A shot ends when it hits a planet or a ship, leaves the play area, or has flown for 25 seconds. **You can hit your own ship**, and that point goes to your opponent.
+A shot ends when it hits a planet or a ship, leaves the play area, or burns out. A shot that is off-screen burns out after 25 seconds, but one still on screen keeps flying (it might loop back!) for up to 90 seconds. Use **Skip** to jump to the end. **You can hit your own ship**, and that point goes to your opponent.
 
 ## The physics
 
