@@ -77,6 +77,7 @@ kbd{background:#0a0c16;border:1px solid var(--line);border-radius:4px;padding:1p
   <div class="legend">Density: low <div class="bar" id="legendBar"></div> high</div>
   <div class="spacer"></div>
   <div class="hbtns">
+    <button id="gravBtn" title="Change gravity strength">Gravity <b id="gravChip">×1</b></button>
     <button id="clearBtn" title="Remove old shot trails">Clear trails</button>
     <button id="newBtn">New round</button>
     <button id="settingsBtn">⚙ Settings</button>
@@ -120,6 +121,12 @@ kbd{background:#0a0c16;border:1px solid var(--line);border-radius:4px;padding:1p
   <label class="row">Number of planets
     <span><input type="range" min="1" max="5" step="1" data-k="planets" data-num> <b id="planetsLbl"></b></span></label>
   <p class="note">Planets are always random, so this only sets a rough range. It applies from the next round.</p>
+  <h3>Physics</h3>
+  <label class="row">Gravity strength
+    <span><input type="range" min="0" max="3" step="0.25" data-k="gravity" data-num> <b id="gravityLbl"></b></span></label>
+  <p class="note">Scales the pull of every planet and takes effect straight away, even mid-round. Planet masses stay the same; only the strength of gravity changes. Try the same shot at 1× and 2×, or turn gravity off to see a shot travel in a straight line.</p>
+
+  <h3>Display</h3>
   <label class="row">Screen edges
     <select data-k="edges">
       <option value="open">Open space (shots can come back)</option>
@@ -194,7 +201,8 @@ kbd{background:#0a0c16;border:1px solid var(--line);border-radius:4px;padding:1p
 'use strict';
 // ---------- constants ----------
 const W = 1200, H = 800;          // world size (game units = pixels at 1:1)
-const G = 5;                      // gravitational constant (tuned for play)
+const G_BASE = 5;                 // gravitational constant at 1x (tuned for play)
+let G = G_BASE;                   // G_BASE x the gravity-strength setting
 const DT = 1 / 240;               // physics timestep (s)
 const MAX_T = 25;                 // shot time limit (s)
 const SPEED_SCALE = 4;            // speed input 1 -> 4 units/s
@@ -204,10 +212,11 @@ const LEVELS = {1:{n:[1,3],rMax:75}, 2:{n:[3,5],rMax:66}, 3:{n:[5,7],rMax:56}, 4
 const LEVEL_NAMES = {1:'Very few', 2:'Few', 3:'Some', 4:'Many', 5:'Lots'};
 const PCOL = ['#f4f4f8', '#ff5cf0'];   // white & magenta: colours planets never use
 const ANIM_STEPS = {slow:3, normal:6, fast:24};
-const DEFAULTS = {opponent:'human', aiLevel:'medium', planets:3, edges:'open', trails:'all', anim:'normal',
+const DEFAULTS = {opponent:'human', aiLevel:'medium', planets:3, gravity:1, edges:'open', trails:'all', anim:'normal',
   fieldArrows:false, fieldMap:false, shotVectors:false, planetInfo:false, readout:true};
 
 let settings = loadSettings();
+G = G_BASE * settings.gravity;
 function loadSettings(){
   try { return Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem('gw-settings') || '{}')); }
   catch(e){ return Object.assign({}, DEFAULTS); }
@@ -635,7 +644,7 @@ function endShot(){
   const who = name(s.owner), tgt = name(1 - s.owner), secs = s.t.toFixed(1);
   const close = `Closest approach to ${tgt}: ${Math.round(s.minD)}.`;
   const A = aim[s.owner];
-  const tag = `[${A.a}°, speed ${A.s}] `;
+  const tag = `[${A.a}°, speed ${A.s}${settings.gravity !== 1 ? ', gravity ' + gravityText() : ''}] `;
   if (s.result === 'ship'){
     const winner = s.hit === s.owner ? 1 - s.owner : s.owner;
     score[winner]++;
@@ -804,6 +813,14 @@ function refreshSettingsForm(){
     if (el.type === 'checkbox') el.checked = !!settings[k]; else el.value = settings[k];
   });
   $('planetsLbl').textContent = LEVEL_NAMES[settings.planets];
+  $('gravityLbl').textContent = gravityText();
+}
+function gravityText(){ return settings.gravity === 0 ? 'Off (0×)' : `${settings.gravity}×`; }
+function applyGravity(){
+  G = G_BASE * settings.gravity;
+  if (planets.length) buildField();
+  $('gravChip').textContent = settings.gravity === 0 ? 'off' : `×${settings.gravity}`;
+  $('gravityLbl').textContent = gravityText();
 }
 sDlg.querySelectorAll('[data-k]').forEach(el => {
   el.addEventListener(el.type === 'range' ? 'input' : 'change', () => {
@@ -812,9 +829,14 @@ sDlg.querySelectorAll('[data-k]').forEach(el => {
     saveSettings();
     $('planetsLbl').textContent = LEVEL_NAMES[settings.planets];
     if (k === 'opponent'){ updateUI(); maybeAI(); }
+    if (k === 'gravity') applyGravity();
   });
 });
 $('settingsBtn').addEventListener('click', () => { refreshSettingsForm(); sDlg.showModal(); });
+$('gravBtn').addEventListener('click', () => {
+  refreshSettingsForm(); sDlg.showModal();
+  sDlg.querySelector('[data-k="gravity"]').focus();
+});
 $('closeSettings').addEventListener('click', () => sDlg.close());
 $('applyNew').addEventListener('click', () => { sDlg.close(); nextRound(); });
 $('resetScores').addEventListener('click', () => { score = [0, 0]; updateUI(); });
@@ -826,6 +848,7 @@ $('closeHelp').addEventListener('click', () => hDlg.close());
 
 // legend
 $('legendBar').style.background = `linear-gradient(90deg, ${[1,1.5,2,2.5,3,3.5,4,4.5,5].map(d => densityColor(d, 55)).join(',')})`;
+applyGravity();
 
 // ---------- main loop ----------
 let lastT = performance.now(), stepAcc = 0;
