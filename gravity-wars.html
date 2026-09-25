@@ -256,16 +256,81 @@ function accelAt(x, y){
   return [ax, ay];
 }
 
+// ---------- ship hulls ----------
+// Hit shapes match the ship drawings (drawEnterprise / drawBirdOfPrey): same local units, nose along +x,
+// scaled by SHIP_SCALE and rotated to the ship's aim angle. Keep the two in sync if a drawing changes.
+const SHIP_SCALE = 1.4;
+const SHIP_EXTENT = 32;           // no part of either hull is further than this from the ship's centre
+const MISSILE_R = 1.5;            // a shot hits when it gets this close to a hull
+const HULLS = [
+  [ // Enterprise
+    {t:'circle', x:6, y:0, r:8},                                    // saucer
+    {t:'ellipse', x:-7, y:0, rx:7, ry:2.8},                         // engineering hull
+    {t:'box', x:1, y:0, hx:2, hy:1.2},                              // neck
+    {t:'box', x:-12, y:-7.8, hx:7, hy:1.5},                         // nacelles
+    {t:'box', x:-12, y: 7.8, hx:7, hy:1.5},
+    {t:'seg', ax:-6, ay:-1.5, bx:-10, by:-6.5, r:0.8},              // pylons
+    {t:'seg', ax:-6, ay: 1.5, bx:-10, by: 6.5, r:0.8}
+  ],
+  [ // Bird of Prey
+    {t:'ellipse', x:-4, y:0, rx:7, ry:4.5},                         // body
+    {t:'ellipse', x:11.5, y:0, rx:4, ry:3},                         // command pod
+    {t:'box', x:6, y:0, hx:4, hy:1.3},                              // neck
+    {t:'poly', p:[[-10,-2], [-14.5,0], [-10,2]]},                   // tail
+    ...[-1, 1].flatMap(sy => [
+      {t:'poly', p:[[-1,sy*3], [4,sy*14], [1,sy*15.5], [-10,sy*6], [-9,sy*2.5]]},   // wing
+      {t:'box', x:5, y:sy*14.6, hx:3, hy:1}                         // wingtip disruptor
+    ])
+  ]
+];
+// signed distance from a point to one hull part (negative = inside), in local units
+function partDist(q, x, y){
+  switch (q.t){
+    case 'circle': return Math.hypot(x - q.x, y - q.y) - q.r;
+    case 'ellipse': { const ex = (x - q.x)/q.rx, ey = (y - q.y)/q.ry; return (Math.hypot(ex, ey) - 1)*Math.min(q.rx, q.ry); }
+    case 'box': {
+      const dx = Math.abs(x - q.x) - q.hx, dy = Math.abs(y - q.y) - q.hy;
+      return Math.hypot(Math.max(dx, 0), Math.max(dy, 0)) + Math.min(Math.max(dx, dy), 0);
+    }
+    case 'seg': {
+      const px = x - q.ax, py = y - q.ay, bx = q.bx - q.ax, by = q.by - q.ay;
+      const h = clamp((px*bx + py*by)/(bx*bx + by*by), 0, 1);
+      return Math.hypot(px - bx*h, py - by*h) - q.r;
+    }
+    case 'poly': {
+      const v = q.p; let d = Infinity, inside = false;
+      for (let i = 0, j = v.length - 1; i < v.length; j = i++){
+        const [ax, ay] = v[j], [bx, by] = v[i], ex = bx - ax, ey = by - ay, wx = x - ax, wy = y - ay;
+        const h = clamp((wx*ex + wy*ey)/(ex*ex + ey*ey), 0, 1);
+        d = Math.min(d, Math.hypot(wx - ex*h, wy - ey*h));
+        if ((ay > y) !== (by > y) && x < ax + (y - ay)*ex/ey) inside = !inside;
+      }
+      return inside ? -d : d;
+    }
+  }
+}
+// distance in world units from (x, y) to ship i's hull when the ship faces angDeg
+function hullDist(i, x, y, angDeg){
+  const s = ships[i], th = angDeg*Math.PI/180, c = Math.cos(th), sn = Math.sin(th);
+  const dx = x - s.x, dy = y - s.y;
+  const lx = (dx*c - dy*sn)/SHIP_SCALE, ly = (dx*sn + dy*c)/SHIP_SCALE;   // undo the drawing's rotate + scale
+  let d = Infinity;
+  for (const q of HULLS[i]) d = Math.min(d, partDist(q, lx, ly));
+  return d*SHIP_SCALE;
+}
+
 function newShot(pi, angleDeg, speed, record){
   const sh = ships[pi], th = angleDeg*Math.PI/180, v = speed*SPEED_SCALE;
   const ux = Math.cos(th), uy = -Math.sin(th);           // screen y points down
   const x = sh.x + ux*(SHIP_R+2), y = sh.y + uy*(SHIP_R+2);
-  return {owner:pi, x, y, vx:ux*v, vy:uy*v, a:accelAt(x,y), t:0, n:0, armed:false,
+  const angs = [aim[0].a, aim[1].a]; angs[pi] = angleDeg;   // ship headings for the hit test (as drawn)
+  return {owner:pi, x, y, vx:ux*v, vy:uy*v, a:accelAt(x,y), t:0, n:0, armed:false, angs,
     done:false, result:null, hit:-1, minD:Infinity, path: record ? [[x,y]] : null};
 }
 
 function stepShot(s){
   const ax = s.a[0], ay = s.a[1];
+  let px = s.x, py = s.y;
   s.x += s.vx*DT + 0.5*ax*DT*DT;
   s.y += s.vy*DT + 0.5*ay*DT*DT;
   let broke = false;
@@ -291,8 +356,10 @@ function stepShot(s){
     if (broke) s.path.push(null);
     if (broke || s.n % 2 === 0 || s.done) s.path.push([s.x, s.y]);
   }
-  const tg = ships[1 - s.owner], td = Math.hypot(s.x - tg.x, s.y - tg.y);
-  if (td < s.minD) s.minD = td;
+  if (broke){ px = s.x; py = s.y; }
+  const ti = 1 - s.owner, tg = ships[ti];
+  const cd = Math.hypot(s.x - tg.x, s.y - tg.y);
+  if (cd - SHIP_EXTENT < s.minD) s.minD = Math.min(s.minD, Math.max(0, hullDist(ti, s.x, s.y, s.angs[ti])));
   if (s.done) return;
   for (let i = 0; i < planets.length; i++){
     const p = planets[i], dx = s.x - p.x, dy = s.y - p.y;
@@ -300,8 +367,19 @@ function stepShot(s){
   }
   for (let i = 0; i < 2; i++){
     if (i === s.owner && !s.armed) continue;
-    const dx = s.x - ships[i].x, dy = s.y - ships[i].y;
-    if (dx*dx + dy*dy < (SHIP_R+1)*(SHIP_R+1)){ s.done = true; s.result = 'ship'; s.hit = i; if (s.path) s.path.push([s.x,s.y]); return; }
+    const dx = s.x - ships[i].x, dy = s.y - ships[i].y, reach = SHIP_EXTENT + 8;
+    if (dx*dx + dy*dy > reach*reach) continue;
+    // check points along this step so a fast shot can't skip over a thin wing or nacelle
+    const n = Math.max(1, Math.ceil(Math.hypot(s.x - px, s.y - py)));
+    for (let k = 1; k <= n; k++){
+      const x = px + (s.x - px)*k/n, y = py + (s.y - py)*k/n;
+      if (hullDist(i, x, y, s.angs[i]) < MISSILE_R){
+        s.x = x; s.y = y; s.done = true; s.result = 'ship'; s.hit = i;
+        if (i === ti) s.minD = 0;
+        if (s.path) s.path.push([x, y]);
+        return;
+      }
+    }
   }
   if (!s.armed && Math.hypot(s.x - ships[s.owner].x, s.y - ships[s.owner].y) > SHIP_R*3) s.armed = true;
   if (s.t >= MAX_T){ s.done = true; s.result = 'timeout'; }
@@ -453,7 +531,7 @@ function drawBirdOfPrey(col){
 }
 function drawShip(i, x, y, angDeg){
   ctx.save();
-  ctx.translate(x, y); ctx.rotate(-angDeg*Math.PI/180); ctx.scale(1.4, 1.4);
+  ctx.translate(x, y); ctx.rotate(-angDeg*Math.PI/180); ctx.scale(SHIP_SCALE, SHIP_SCALE);
   if (i === 0) drawEnterprise(PCOL[i]); else drawBirdOfPrey(PCOL[i]);
   ctx.restore();
 }
@@ -571,6 +649,14 @@ function render(now){
       arrow(x - dx/L*12, y - dy/L*12, dx/L*10, dy/L*10, PCOL[live.owner], 2);
       ctx.globalAlpha = 1;
     }
+  }
+
+  if (location.hash === '#hitbox'){
+    ctx.fillStyle = 'rgba(255,60,60,.55)';
+    ships.forEach((s, i) => {
+      for (let y = -SHIP_EXTENT; y <= SHIP_EXTENT; y++) for (let x = -SHIP_EXTENT; x <= SHIP_EXTENT; x++)
+        if (hullDist(i, s.x + x, s.y + y, aim[i].a) < MISSILE_R) ctx.fillRect(s.x + x, s.y + y, 1, 1);
+    });
   }
 
   // particles

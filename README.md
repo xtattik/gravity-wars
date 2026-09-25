@@ -29,6 +29,7 @@ A shot ends when it hits a planet or a ship, leaves the play area, or has flown 
 - **Planet colour shows density**, from red (low, ρ = 1) through orange, yellow, green and cyan to blue (high, ρ = 5).
 - **Mass = density × radius³**, so size and colour both matter. A large red planet can pull about as hard as a small blue one.
 - **Gravity follows the inverse-square law.** The pull on the missile from each planet is `G × M / d²`, and the pulls from all the planets add together as vectors.
+- **Hits use each ship's actual outline**, rotated with the ship, so a shot that clips a wingtip or a nacelle counts and one that slips past it doesn't. To see the hit shapes, add `#hitbox` to the end of the page address.
 - The simulation uses velocity-Verlet integration at 240 steps per second, so orbits stay stable and repeatable. The same angle and speed on the same map always give the same result.
 
 ## Settings (⚙)
