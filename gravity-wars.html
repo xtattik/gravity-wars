@@ -191,6 +191,10 @@ table.log tr.hit td{background:rgba(93,255,138,.07)}
 <dialog id="settingsDlg">
   <h2>Settings</h2>
   <h3>Game</h3>
+  <div class="names">
+    <label><span class="p1">Player 1 name</span> <input type="text" data-k="p1Name" placeholder="Player 1" maxlength="16" autocomplete="off"></label>
+    <label><span class="p2">Player 2 name</span> <input type="text" data-k="p2Name" placeholder="Player 2" maxlength="16" autocomplete="off"></label>
+  </div>
   <label class="row">Opponent
     <select data-k="opponent">
       <option value="human">Two players (take turns)</option>
@@ -266,8 +270,8 @@ table.log tr.hit td{background:rgba(93,255,138,.07)}
   <h2>📋 Shot log</h2>
   <p class="note">Every shot fired this session. "Angle change" and "Speed change" show how much the player adjusted since their previous shot in that round. The log resets when the page is reloaded.</p>
   <div class="names">
-    <label><span class="p1">Player 1 name</span> <input type="text" id="nameP1" placeholder="Player 1" autocomplete="off"></label>
-    <label><span class="p2">Player 2 name</span> <input type="text" id="nameP2" placeholder="Player 2" autocomplete="off"></label>
+    <label><span class="p1">Player 1 name</span> <input type="text" id="nameP1" placeholder="Player 1" maxlength="16" autocomplete="off"></label>
+    <label><span class="p2">Player 2 name</span> <input type="text" id="nameP2" placeholder="Player 2" maxlength="16" autocomplete="off"></label>
     <label><input type="checkbox" id="incReflect" checked> Add reflection questions to the report</label>
   </div>
   <div class="logwrap" id="logTable"></div>
@@ -351,7 +355,8 @@ const LEVEL_NAMES = {1:'Very few', 2:'Few', 3:'Some', 4:'Many', 5:'Lots'};
 const PCOL = ['#f4f4f8', '#ff5cf0'];   // white & magenta: colours planets never use
 const ANIM_STEPS = {slow:3, normal:6, fast:24};
 const DEFAULTS = {opponent:'human', aiLevel:'medium', planets:3, gravity:1, edges:'open', trails:'all', anim:'normal',
-  fieldArrows:false, fieldMap:false, shotVectors:false, planetInfo:false, readout:true, achievements:true, tournament:false, target:5};
+  fieldArrows:false, fieldMap:false, shotVectors:false, planetInfo:false, readout:true, achievements:true, tournament:false, target:5,
+  p1Name:'', p2Name:''};
 
 let settings = loadSettings();
 G = G_BASE * settings.gravity;
@@ -381,7 +386,10 @@ const round2 = v => Math.round(v*100)/100;
 const parseNum = v => parseFloat(String(v).trim().replace(',', '.'));
 function gauss(){ let u=0,v=0; while(!u)u=Math.random(); while(!v)v=Math.random(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
 function densityColor(d, l=55){ const t = clamp((d-1)/4, 0, 1); return `hsl(${240*t},85%,${l}%)`; } // red -> orange -> yellow -> green -> cyan -> blue
-function name(i){ return i === 0 ? 'Player 1' : challenge ? 'Target' : (settings.opponent === 'computer' ? 'Computer' : 'Player 2'); }
+// a player's chosen name (Settings or the log), or "Player 1" / "Player 2" if left blank
+function humanName(i){ return String(settings[i === 0 ? 'p1Name' : 'p2Name'] || '').trim() || `Player ${i + 1}`; }
+function name(i){ return i === 0 ? humanName(0) : challenge ? 'Target' : (settings.opponent === 'computer' ? 'Computer' : humanName(1)); }
+const hasName = i => !!String(settings[i === 0 ? 'p1Name' : 'p2Name'] || '').trim();
 const isAI = i => i === 1 && settings.opponent === 'computer' && !challenge;
 const effGravity = () => challenge ? challenge.g : settings.gravity;   // a challenge sets its own gravity
 const edgeMode = () => challenge ? challenge.L.edges : settings.edges;
@@ -787,7 +795,7 @@ function render(now){
     }
     drawShip(i, s.x, s.y, aim[i].a);
     ctx.fillStyle = PCOL[i];
-    ctx.fillText(i === 0 ? 'P1' : challenge ? 'TARGET' : (isAI(1) ? 'CPU' : 'P2'), s.x, s.y - 31);
+    ctx.fillText(i === 0 ? (hasName(0) ? name(0) : 'P1') : challenge ? 'TARGET' : isAI(1) ? 'CPU' : (hasName(1) ? name(1) : 'P2'), s.x, s.y - 31);
   });
 
   // aim guide
@@ -1119,8 +1127,7 @@ function finishRoundRecord(){
 }
 
 function playerName(i, cpu){
-  if (cpu) return 'Computer';
-  return ($(i === 0 ? 'nameP1' : 'nameP2').value.trim()) || `Player ${i + 1}`;
+  return cpu ? 'Computer' : humanName(i);
 }
 function esc(t){ return String(t).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 // rounds that have shots, numbered 1, 2, 3... for the report
@@ -1584,6 +1591,7 @@ function updateUI(){
   $('s0').textContent = score[0]; $('s1').textContent = score[1];
   $('matchChip').hidden = !settings.tournament;
   $('matchChip').textContent = `First to ${settings.target}`;
+  $('n0').textContent = name(0);
   $('n1').textContent = name(1);
 }
 
@@ -1637,6 +1645,21 @@ function refreshSettingsForm(){
   });
   $('planetsLbl').textContent = LEVEL_NAMES[settings.planets];
   $('gravityLbl').textContent = gravityText(settings.gravity);
+  syncNameFields();
+}
+// the name boxes in Settings and in the log share settings.p1Name / p2Name
+function syncNameFields(){
+  const cpu = settings.opponent === 'computer';
+  [['p1Name', 'nameP1'], ['p2Name', 'nameP2']].forEach(([k, id]) => {
+    [sDlg.querySelector(`[data-k="${k}"]`), $(id)].forEach(el => { if (document.activeElement !== el) el.value = settings[k]; });
+  });
+  [sDlg.querySelector('[data-k="p2Name"]'), $('nameP2')].forEach(el => {
+    el.disabled = cpu; el.title = cpu ? 'Player 2 is the computer' : '';
+  });
+}
+function setPlayerName(k, v){
+  settings[k] = v; saveSettings(); syncNameFields(); updateUI();
+  if (lDlg.open) renderLog();
 }
 function gravityText(g){ return g === 0 ? 'Off (0×)' : `${g}×`; }
 function applyGravity(){
@@ -1647,12 +1670,13 @@ function applyGravity(){
   $('gravityLbl').textContent = gravityText(settings.gravity);
 }
 sDlg.querySelectorAll('[data-k]').forEach(el => {
-  el.addEventListener(el.type === 'range' ? 'input' : 'change', () => {
+  el.addEventListener(el.type === 'range' || el.type === 'text' ? 'input' : 'change', () => {
     const k = el.dataset.k;
+    if (el.type === 'text') return setPlayerName(k, el.value);
     settings[k] = el.type === 'checkbox' ? el.checked : ('num' in el.dataset ? Number(el.value) : el.value);
     saveSettings();
     $('planetsLbl').textContent = LEVEL_NAMES[settings.planets];
-    if (k === 'opponent'){ updateUI(); maybeAI(); }
+    if (k === 'opponent'){ updateUI(); syncNameFields(); maybeAI(); }
     if (k === 'gravity') applyGravity();
     if (k === 'achievements') updateAchCount();
     if (k === 'target'){ settings.target = clamp(Math.round(settings.target) || 5, 1, 25); el.value = settings.target; saveSettings(); }
@@ -1688,9 +1712,10 @@ $('gravRange').addEventListener('input', () => setChalGravity($('gravRange').val
 $('gravNum').addEventListener('focus', () => $('gravNum').select());
 $('gravNum').addEventListener('mouseup', e => e.preventDefault());
 const lDlg = $('logDlg');
-$('logBtn').addEventListener('click', () => { renderLog(); lDlg.showModal(); });
+$('logBtn').addEventListener('click', () => { syncNameFields(); renderLog(); lDlg.showModal(); });
 $('logClose').addEventListener('click', () => lDlg.close());
-['nameP1', 'nameP2'].forEach(id => $(id).addEventListener('input', renderLog));
+$('nameP1').addEventListener('input', e => setPlayerName('p1Name', e.target.value));
+$('nameP2').addEventListener('input', e => setPlayerName('p2Name', e.target.value));
 $('logClear').addEventListener('click', () => {
   if (!shotLog.length || !confirm('Clear every shot from the log?')) return;
   shotLog = []; rounds = rounds.slice(-1); rounds[0].img = null;

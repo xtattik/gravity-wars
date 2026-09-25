@@ -35,6 +35,7 @@ A shot ends when it hits a planet or a ship, leaves the play area, or burns out.
 ## Settings (⚙)
 
 **Game**
+- **Player names:** type a name for each player (up to 16 characters). Names show on the scoreboard, above the ships, in the turn and result messages, and in the shot log and its exports, so the log clearly shows who took each shot. They're remembered next time. Leave a box blank to use *Player 1* / *Player 2*. Player 2's name is greyed out when you play the computer.
 - **Opponent:** two players taking turns on one device, or the computer (Easy / Medium / Hard). The computer aims better as the round goes on, much like a person correcting from their trails.
 - **Tournament:** first to a set number of points wins (default 5, from 1 to 25). A *First to 5* badge sits next to the scores. When someone reaches the target, a winner's screen shows the final score and a match summary (shots, hits and achievements for each player), with a **New tournament** button. Turning the tournament on, or changing the points, resets the scores. Tournament wins are recorded in the shot log.
 - **Number of planets:** from *Very few* to *Lots*. Layouts are always random; this only sets a rough range. It applies from the next round.
@@ -102,7 +103,7 @@ The computer opponent can earn them too. One shot can earn several at once: a fi
 
 ## Shot log and reports 📋
 
-The **📋 Log** button lists every shot fired this session, grouped by round. For each shot it shows the angle, speed, how much the player changed their angle and speed since their previous shot, gravity, result, flight time, closest approach and any achievements. Type the students' names in to use them in the exports.
+The **📋 Log** button lists every shot fired this session, grouped by round. For each shot it shows the angle, speed, how much the player changed their angle and speed since their previous shot, gravity, result, flight time, closest approach and any achievements. The player name boxes here are the same as the ones in Settings, so you can rename players here too. Changing a name also updates shots already in the log.
 
 | Export | What you get |
 |---|---|
