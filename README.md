@@ -54,6 +54,34 @@ A shot ends when it hits a planet or a ship, leaves the play area, or has flown 
 - **Planet labels:** each planet's density (ρ) and mass (M).
 - **Shot readout:** time, speed, gravity pull and closest approach to the target.
 
+## Challenges 🎯
+
+The **🎯 Challenges** button opens 13 set maps, the same for every student. Each has one goal, and often some controls locked (e.g. speed fixed, so only the angle changes), so students work on one idea at a time. Each level shows:
+
+- an **intro card** with what you're learning, the goal and the rules;
+- a **💡 Hint** that unlocks after two misses;
+- a **debrief** on passing that explains the physics, plus 1–3 ⭐ based on shots used.
+
+All levels are open, so play them in any order. Levels are tagged **Stage 4** (Years 7–8) or **Stage 5** (Years 9–10 extension).
+
+| # | Challenge | Stage | You control | The idea |
+|---|---|---|---|---|
+| 1.1 | Straight shooter | 4 | angle | 0° = right; gravity off, so shots go straight (Newton's first law). A protractor surrounds the ship. |
+| 1.2 | Up and across | 4 | angle | Measuring angles: 45° |
+| 1.3 | Behind you | 4 | angle | Angles past 180°; small errors grow with distance |
+| 1.4 | Bank shot | 4 | angle | Bounce off an edge: angle of incidence = angle of reflection |
+| 2.1 | Which way will it bend? | 4 | angle | Gravity pulls towards a planet's centre, so aim off to compensate |
+| 2.2 | Speed matters | 4 | speed | Slower shots spend longer near a planet, so they bend more |
+| 2.3 | Tune the gravity | 4 | gravity strength | Stronger gravity → bigger force → more bending (F = ma) |
+| 3.1 | Density matters | 4 | angle | Same size, 5× the density → 5× the mass → 5× the pull |
+| 3.2 | Big red, small blue | 4 | angle | Equal masses cancel, whatever the size (mass = ρ × r³) |
+| 3.3 | The balance point | 5 | angle | Inverse-square law: 4× the mass balances at 2× the distance |
+| 4.1 | Slingshot | 5 | angle & speed | Swing 90°+ round the big planet to hit a hidden target |
+| 4.2 | Into orbit | 5 | speed | Find orbital speed: too slow crashes, too fast escapes |
+| 4.3 | Grand finale | 5 | angle & speed | Everything combined in a crowded field |
+
+Every level has been checked with the game's own physics to make sure it can be solved. Challenge attempts appear in the shot log and reports, with whether they were passed and in how many shots.
+
 ## Achievements 🏆
 
 Trick shots earn achievements, which pop up as they happen. The 🏆 button in the header shows which have been earned, by whom and how many times. Once an achievement is earned, the list also shows a short explanation of the physics behind it. Achievements last for the session: they reset when the page is reloaded, or with the reset button in the list.

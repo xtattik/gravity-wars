@@ -88,6 +88,29 @@ table.log tr.rnd td{background:#141829;color:var(--accent);font-weight:700;white
 table.log td.num{text-align:right}
 table.log tr.hit td{background:rgba(93,255,138,.07)}
 .empty{padding:20px;text-align:center;color:var(--muted)}
+[hidden]{display:none!important}
+#chalBar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:7px 14px;background:#141a33;border-bottom:1px solid var(--line)}
+#chalBar .cb-title{font-weight:700;color:var(--accent)}
+#chalBar .cb-goal{color:var(--text);font-size:14px;flex:1;min-width:200px}
+#chalBar .cb-shots{font-size:14px;color:var(--muted)}
+#chalBar button{padding:4px 10px;font-size:14px}
+.ctl.locked::after{content:'🔒';font-size:14px}
+.ctl.locked input{opacity:.55}
+#chalDone{max-width:min(560px,90vw)}
+#chalDone .stars{font-size:30px;letter-spacing:4px;margin-bottom:4px}
+#chalDone .debrief{font-size:15px;line-height:1.45;text-align:left;color:#cfd4ea;margin:4px 0 14px}
+#chalDone .btnrow{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px;letter-spacing:.03em;vertical-align:middle}
+.tag.s4{background:#1d3a2a;color:#7dffa8}
+.tag.s5{background:#3a2a1d;color:#ffc27d}
+.cl-unit{display:grid;gap:6px}
+.cl-row{display:flex;align-items:center;gap:10px;text-align:left;width:100%;padding:8px 12px}
+.cl-id{font-weight:700;color:var(--accent);width:28px}
+.cl-t{flex:1}
+.cl-stars{width:70px;text-align:right}
+#chalIntro .sec{margin:10px 0}
+#chalIntro .sec b{display:block;color:var(--accent);font-size:13px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}
+#chalIntro p{margin:0;line-height:1.45}
 @media (max-width:700px){
   header h1{font-size:15px}
   .ctl input[type=range]{width:110px}
@@ -106,6 +129,7 @@ table.log tr.hit td{background:rgba(93,255,138,.07)}
   <div class="legend">Density: low <div class="bar" id="legendBar"></div> high</div>
   <div class="spacer"></div>
   <div class="hbtns">
+    <button id="chalBtn" title="Set challenges that teach angles and gravity, one idea at a time">🎯 Challenges</button>
     <button id="gravBtn" title="Change gravity strength">Gravity <b id="gravChip">×1</b></button>
     <button id="clearBtn" title="Remove old shot trails">Clear trails</button>
     <button id="newBtn">New round</button>
@@ -116,10 +140,27 @@ table.log tr.hit td{background:rgba(93,255,138,.07)}
   </div>
 </header>
 
+<div id="chalBar" hidden>
+  <span class="cb-title" id="cbTitle"></span>
+  <span class="cb-goal" id="cbGoal"></span>
+  <span class="cb-shots">Shots: <b id="cbShots">0</b></span>
+  <button id="cbHint" title="A hint appears after 2 tries">💡 Hint</button>
+  <button id="cbRestart" title="Start this challenge again">↺ Restart</button>
+  <button id="cbList">☰ All challenges</button>
+  <button id="cbExit" title="Back to normal two-player games">✕ Free play</button>
+</div>
 <div id="stage">
   <canvas id="c"></canvas>
   <div id="toasts"></div>
-  <div id="overlay"><div class="box"><div class="msg" id="overMsg"></div><button id="nextBtn" class="primary">Next round ▶</button></div></div>
+  <div id="overlay">
+    <div class="box" id="roundBox"><div class="msg" id="overMsg"></div><button id="nextBtn" class="primary">Next round ▶</button></div>
+    <div class="box" id="chalDone" hidden>
+      <div class="stars" id="cdStars"></div>
+      <div class="msg" id="cdMsg"></div>
+      <p class="debrief" id="cdText"></p>
+      <div class="btnrow"><button id="cdRetry">↺ Try again</button><button id="cdList">☰ All challenges</button><button id="cdNext" class="primary">Next challenge ▶</button></div>
+    </div>
+  </div>
 </div>
 
 <div id="controls">
@@ -131,6 +172,10 @@ table.log tr.hit td{background:rgba(93,255,138,.07)}
   <label class="ctl"><span class="lbl">Speed</span>
     <input id="speedNum" type="text" inputmode="decimal" autocomplete="off" title="Type a speed, e.g. 42.5">
     <input id="speedRange" type="range" tabindex="-1" min="0" max="100" step="0.5">
+  </label>
+  <label class="ctl" id="gravCtl" hidden><span class="lbl">Gravity</span>
+    <input id="gravNum" type="text" inputmode="decimal" autocomplete="off" title="Type a gravity strength from 0 to 3, e.g. 1.35"><span>×</span>
+    <input id="gravRange" type="range" min="0" max="3" step="0.05" tabindex="-1">
   </label>
   <button id="fireBtn" class="fire">FIRE</button>
   <div id="status"></div>
@@ -224,6 +269,23 @@ table.log tr.hit td{background:rgba(93,255,138,.07)}
   </div>
 </dialog>
 
+<dialog id="chalDlg">
+  <h2>🎯 Challenges</h2>
+  <p class="note">Set maps with one goal each. They teach angles first, then gravity, mass and density, and finally orbits. <span class="tag s4">Stage 4</span> levels suit Years 7–8; <span class="tag s5">Stage 5</span> levels stretch into Years 9–10. Every level is open, so play them in any order. Stars: ⭐⭐⭐ for passing within the target number of shots.</p>
+  <div id="chalList"></div>
+  <div class="btnrow"><button id="chalClose" class="primary">Close</button></div>
+</dialog>
+
+<dialog id="chalIntro">
+  <h2 id="ciTitle"></h2>
+  <span class="tag" id="ciStage"></span>
+  <div class="sec"><b>What you're learning</b><p id="ciLearn"></p></div>
+  <div class="sec"><b>Your goal</b><p id="ciGoal"></p></div>
+  <div class="sec"><b>Rules</b><p id="ciRules"></p></div>
+  <p class="note" id="ciPar"></p>
+  <div class="btnrow"><button id="ciList">☰ All challenges</button><button id="ciStart" class="primary">Start ▶</button></div>
+</dialog>
+
 <dialog id="helpDlg" class="help">
   <h2>How to play</h2>
   <p>Each player has a ship. Take turns firing at the other ship. Every planet pulls on your shot, so it curves. Hit the enemy ship to win the round.</p>
@@ -289,6 +351,7 @@ function saveSettings(){ try { localStorage.setItem('gw-settings', JSON.stringif
 // ---------- state ----------
 let planets = [], ships = [], shots = [], live = null, particles = [];
 let score = [0,0], current = 0, starter = 1, state = 'aim', aiShots = 0, roundId = 0;
+let challenge = null;              // {i, L, shots, misses, g} while a challenge is being played
 let aim = [{a:20, s:40}, {a:160, s:40}];
 let fieldMapCanvas = null, fieldArrows = [], lastInfo = null;
 const RO_W = 212, RO_H = 98;
@@ -304,8 +367,10 @@ const round2 = v => Math.round(v*100)/100;
 const parseNum = v => parseFloat(String(v).trim().replace(',', '.'));
 function gauss(){ let u=0,v=0; while(!u)u=Math.random(); while(!v)v=Math.random(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
 function densityColor(d, l=55){ const t = clamp((d-1)/4, 0, 1); return `hsl(${240*t},85%,${l}%)`; } // red -> orange -> yellow -> green -> cyan -> blue
-function name(i){ return i === 0 ? 'Player 1' : (settings.opponent === 'computer' ? 'Computer' : 'Player 2'); }
-const isAI = i => i === 1 && settings.opponent === 'computer';
+function name(i){ return i === 0 ? 'Player 1' : challenge ? 'Target' : (settings.opponent === 'computer' ? 'Computer' : 'Player 2'); }
+const isAI = i => i === 1 && settings.opponent === 'computer' && !challenge;
+const effGravity = () => challenge ? challenge.g : settings.gravity;   // a challenge sets its own gravity
+const edgeMode = () => challenge ? challenge.L.edges : settings.edges;
 
 // ---------- physics ----------
 function accelAt(x, y){
@@ -388,7 +453,8 @@ function newShot(pi, angleDeg, speed, record){
   const x = sh.x + ux*(SHIP_R+2), y = sh.y + uy*(SHIP_R+2);
   const angs = [aim[0].a, aim[1].a]; angs[pi] = angleDeg;   // ship headings for the hit test (as drawn)
   const track = record ? {turn:0, planetTurn:planets.map(() => 0), sweep:planets.map(() => 0), bounces:0} : null;
-  return {owner:pi, x, y, vx:ux*v, vy:uy*v, a:accelAt(x,y), t:0, n:0, armed:false, angs, track,
+  const selfSafe = !!(challenge && challenge.L.selfSafe);
+  return {owner:pi, x, y, vx:ux*v, vy:uy*v, a:accelAt(x,y), t:0, n:0, armed:false, angs, track, selfSafe,
     done:false, result:null, hit:-1, minD:Infinity, path: record ? [[x,y]] : null};
 }
 
@@ -398,7 +464,7 @@ function stepShot(s){
   s.x += s.vx*DT + 0.5*ax*DT*DT;
   s.y += s.vy*DT + 0.5*ay*DT*DT;
   let broke = false;
-  switch (settings.edges){
+  switch (edgeMode()){
     case 'wrap':
       if (s.x < 0){ s.x += W; broke = true; } else if (s.x >= W){ s.x -= W; broke = true; }
       if (s.y < 0){ s.y += H; broke = true; } else if (s.y >= H){ s.y -= H; broke = true; }
@@ -435,7 +501,7 @@ function stepShot(s){
     if (dx*dx + dy*dy < p.r*p.r){ s.done = true; s.result = 'planet'; s.hit = i; return; }
   }
   for (let i = 0; i < 2; i++){
-    if (i === s.owner && !s.armed) continue;
+    if (i === s.owner && (!s.armed || s.selfSafe)) continue;
     const dx = s.x - ships[i].x, dy = s.y - ships[i].y, reach = SHIP_EXTENT + 8;
     if (dx*dx + dy*dy > reach*reach) continue;
     // check points along this step so a fast shot can't skip over a thin wing or nacelle
@@ -491,7 +557,11 @@ function makeRound(){
     planets.push({x, y, r, d, m: d*r*r*r});
   }
   buildField();
-  // put the readout box in the corner that overlaps planets/ships the least
+  placeReadout();
+}
+
+// put the readout box in the corner that overlaps planets/ships the least
+function placeReadout(){
   const corners = [[10, 10], [W-RO_W-10, 10], [10, H-RO_H-10], [W-RO_W-10, H-RO_H-10]];
   const overlap = ([x, y]) => {
     let o = 0;
@@ -661,13 +731,26 @@ function render(now){
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
   }
-  if (settings.planetInfo){
+  if (settings.planetInfo || (challenge && challenge.L.labels)){
     ctx.font = '600 13px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     for (const p of planets){
       const t1 = `ρ ${p.d.toFixed(1)}   M ${Math.round(p.m/1000)}`;
       ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.85)';
       ctx.strokeText(t1, p.x, p.y + p.r + 5);
       ctx.fillStyle = '#e6e9f5'; ctx.fillText(t1, p.x, p.y + p.r + 5);
+    }
+  }
+
+  // protractor round the shooter for the angle challenges
+  if (challenge && challenge.L.protractor){
+    const s = ships[0], R = 78;
+    ctx.strokeStyle = 'rgba(122,162,255,.6)'; ctx.fillStyle = 'rgba(160,190,255,.95)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(s.x, s.y, R, 0, Math.PI*2); ctx.stroke();
+    ctx.font = '600 11px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (let a = 0; a < 360; a += 5){
+      const th = a*Math.PI/180, c = Math.cos(th), sn = -Math.sin(th), L = a % 30 === 0 ? 11 : a % 10 === 0 ? 7 : 3;
+      ctx.beginPath(); ctx.moveTo(s.x + c*R, s.y + sn*R); ctx.lineTo(s.x + c*(R-L), s.y + sn*(R-L)); ctx.stroke();
+      if (a % 30 === 0) ctx.fillText(a + '°', s.x + c*(R+15), s.y + sn*(R+15));
     }
   }
 
@@ -683,7 +766,7 @@ function render(now){
     }
     drawShip(i, s.x, s.y, aim[i].a);
     ctx.fillStyle = PCOL[i];
-    ctx.fillText(i === 0 ? 'P1' : (isAI(1) ? 'CPU' : 'P2'), s.x, s.y - 31);
+    ctx.fillText(i === 0 ? 'P1' : challenge ? 'TARGET' : (isAI(1) ? 'CPU' : 'P2'), s.x, s.y - 31);
   });
 
   // aim guide
@@ -786,6 +869,7 @@ function burst(x, y, col, n, sp){
 // ---------- game flow ----------
 function nextRound(){
   finishRoundRecord();
+  $('roundBox').hidden = false; $('chalDone').hidden = true;
   roundId++;
   starter = 1 - starter; current = starter;
   makeRound();
@@ -803,7 +887,8 @@ function fire(){
   if (settings.trails === 'off') shots = [];
   live = newShot(current, A.a, A.s, true);
   shotsThisRound[current]++;
-  Object.assign(live, {fireA: A.a, fireS: A.s, gravity: settings.gravity, shotNo: shotsThisRound[current], cpu: isAI(current)});
+  if (challenge){ challenge.shots++; updateChalBar(); }
+  Object.assign(live, {fireA: A.a, fireS: A.s, gravity: effGravity(), shotNo: shotsThisRound[current], cpu: isAI(current)});
   lastInfo = null;
   state = 'flying';
   setStatus(`${name(current)} fires: angle ${A.a}°, speed ${A.s}`);
@@ -821,7 +906,8 @@ function endShot(){
   const who = name(s.owner), tgt = name(1 - s.owner), secs = s.t.toFixed(1);
   const close = `Closest approach to ${tgt}: ${Math.round(s.minD)}.`;
   const A = aim[s.owner];
-  const tag = `[${A.a}°, speed ${A.s}${settings.gravity !== 1 ? ', gravity ' + gravityText() : ''}] `;
+  const tag = `[${A.a}°, speed ${A.s}${effGravity() !== 1 ? ', gravity ' + gravityText(effGravity()) : ''}] `;
+  if (challenge){ challengeShotEnded(s, tag); return; }
   if (s.result === 'ship'){
     const winner = s.hit === s.owner ? 1 - s.owner : s.owner;
     score[winner]++;
@@ -881,7 +967,7 @@ const ACHIEVEMENTS = [
   {id:'newton', ico:'🍎', name:'Newton\'s First',
     desc:'Hit the enemy with gravity switched off.',
     phys:'With no force acting, an object keeps moving in a straight line at a constant speed (Newton\'s first law).',
-    test:(s, c) => c.hitEnemy && settings.gravity === 0},
+    test:(s, c) => c.hitEnemy && effGravity() === 0},
   {id:'pinball', ico:'🎱', name:'Pinball',
     desc:'Hit the enemy after 3 or more bounces off the edges (Bounce mode).',
     phys:'Each bounce reverses one part of the velocity, so the angle it comes in at equals the angle it goes out at.',
@@ -991,6 +1077,7 @@ function playedRounds(){
 }
 function roundTitle(r){
   const g = [...new Set(shotLog.filter(e => e.round === r.id).map(e => e.gravity + '×'))].join(' / ');
+  if (r.challenge) return `${r.challenge} (gravity ${g}): ${r.passed ? `passed in ${r.tries} shot${r.tries === 1 ? '' : 's'}` : 'not passed'}`;
   const w = r.winner === null ? (r.id === roundId && state !== 'over' ? 'in progress' : 'no winner')
     : `won by ${playerName(r.winner, r.winner === 1 && r.cpu)}`;
   return `Round ${r.num}: ${r.planets} planets, gravity ${g}, ${{open:'open space', vanish:'vanishing edges', bounce:'bouncing edges', wrap:'wrap-around edges'}[r.edges]}, ${w}`;
@@ -1047,6 +1134,8 @@ function reflectionQs(i){
   qs.push(ach.length
     ? `You earned: ${ach.join(', ')}. Pick one and explain the physics of what happened.`
     : 'Which achievement would you most like to earn next? Plan the shot: what angle and speed would you try, and why?');
+  if (mine.some(e => (pr.find(r => r.id === e.round) || {}).challenge))
+    qs.push('Which challenge was hardest for you? What did you learn from it that helped (or would help) with the others?');
   qs.push('What advice would you give a classmate who is about to play for the first time?');
   return qs;
 }
@@ -1106,6 +1195,240 @@ function download(name, text, type){
 const fileStamp = () => { const d = new Date(), z = n => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}_${z(d.getHours())}-${z(d.getMinutes())}`; };
 function flash(btn, text){ const t = btn.textContent; btn.textContent = text; setTimeout(() => btn.textContent = t, 1500); }
+
+// ---------- challenges ----------
+// Hand-built maps, the same for everyone. planets: [x, y, radius, density]. lock: a/s = fixed angle/speed
+// (null = the student chooses), g: 'free' = the student chooses the gravity. start = starting values.
+// goalType: 'hit' (default), 'bounce' (hit after bouncing), 'slingshot' (hit after swinging 90°+ round
+// one planet) or 'loop' (go all the way round a planet). par = most shots for 3 stars.
+const CHAL_UNITS = [
+  {n:1, title:'Angles'}, {n:2, title:'Gravity basics'}, {n:3, title:'Mass & density'}, {n:4, title:'Orbits & slingshots'}
+];
+const CHALLENGES = [
+  {id:'1.1', unit:1, stage:4, title:'Straight shooter', g:0, edges:'vanish', protractor:true,
+    shooter:[150,400], target:[1050,400], targetAng:180, planets:[[520,180,40,2],[800,640,55,4]],
+    lock:{a:null, s:50}, start:{a:90, s:50}, par:1,
+    learn:'Angles are measured anticlockwise from the right: 0° points right, 90° points up, 180° points left and 270° points down.',
+    goal:'Hit the target. Gravity is off and the speed is locked, so you only choose the angle.',
+    short:'Hit the target. Gravity off; you choose the angle.',
+    hint:'The target is straight to your right. Which angle points straight right?',
+    debrief:'0° points straight to the right. With gravity off, nothing pushes the shot sideways, so it travels in a straight line at a steady speed: Newton\'s first law.'},
+  {id:'1.2', unit:1, stage:4, title:'Up and across', g:0, edges:'vanish', protractor:true,
+    shooter:[250,650], target:[750,150], targetAng:225, planets:[[900,520,50,3],[430,280,30,1]],
+    lock:{a:null, s:50}, start:{a:0, s:50}, par:2,
+    learn:'An angle between 0° (right) and 90° (up) points diagonally up and to the right.',
+    goal:'Hit the target. Use the protractor around your ship to measure the angle.',
+    short:'Hit the target. Measure the angle with the protractor.',
+    hint:'The target is up and to the right, exactly halfway between 0° and 90°.',
+    debrief:'Halfway between 0° and 90° is 45°. Because every angle is measured from the same starting direction (0° = right), everyone agrees on what "45°" means.'},
+  {id:'1.3', unit:1, stage:4, title:'Behind you', g:0, edges:'vanish', protractor:true,
+    shooter:[900,200], target:[300,600], targetAng:33.7, planets:[[560,230,45,2],[700,660,40,5]],
+    lock:{a:null, s:50}, start:{a:0, s:50}, par:3,
+    learn:'Angles keep going past 180°. Since 180° is left and 270° is down, "down and to the left" is between 180° and 270°.',
+    goal:'Hit the target. It\'s behind you and below, so you\'ll need an angle bigger than 180°.',
+    short:'Hit the target. You\'ll need an angle bigger than 180°.',
+    hint:'The target is between 180° (left) and 270° (down), a bit closer to 180°. Measure with the protractor, then adjust by a degree or two.',
+    debrief:'The angle was about 214°. Past 180° you are measuring round into the bottom half of the circle. Notice how small errors matter: 1° off at this distance misses by about 12 units.'},
+  {id:'1.4', unit:1, stage:4, title:'Bank shot', g:0, edges:'bounce', goalType:'bounce',
+    shooter:[150,600], target:[1050,600], targetAng:180, planets:[[600,560,110,3]],
+    lock:{a:null, s:60}, start:{a:90, s:60}, par:3,
+    learn:'When something bounces off a flat surface, it leaves at the same angle it came in: the angle of incidence equals the angle of reflection.',
+    goal:'Hit the target by bouncing off an edge of the screen. The planet blocks the direct shot.',
+    short:'Hit the target after bouncing off an edge.',
+    goalFail:'you need to bounce off an edge first.',
+    hint:'Imagine a mirror image of the target above the top edge, the same distance above the edge as the real target is below it. Aim at the mirror image!',
+    debrief:'Aiming at the target\'s reflection works because the angle in equals the angle out. It\'s how light reflects in a mirror, and how snooker players plan bank shots.'},
+
+  {id:'2.1', unit:2, stage:4, title:'Which way will it bend?', g:1, edges:'open',
+    shooter:[150,420], target:[1050,420], targetAng:180, planets:[[600,290,50,3]],
+    lock:{a:null, s:55}, start:{a:0, s:55}, par:3,
+    learn:'Gravity pulls your shot towards the centre of the planet, so the path bends towards the planet.',
+    goal:'Hit the target. You choose the angle; the speed is locked. Before you fire, predict which way the planet will bend a shot aimed straight at the target.',
+    short:'Hit the target. Predict the bend first!',
+    hint:'The planet pulls the shot upwards as it passes, so aim a little below the target: an angle just under 360°.',
+    debrief:'The shot curved towards the planet, because gravity always pulls towards the planet\'s centre. Aiming off to one side and letting a force bend the path back is like aiming into a crosswind.'},
+  {id:'2.2', unit:2, stage:4, title:'Speed matters', g:1, edges:'open',
+    shooter:[200,560], target:[1000,560], targetAng:180, planets:[[600,730,55,4]],
+    lock:{a:20, s:null}, start:{a:20, s:30}, par:4,
+    learn:'With the angle fixed, speed decides how long gravity has to bend the path. Slow shots bend a lot; fast shots barely bend.',
+    goal:'Hit the target. The angle is locked at 20°; you choose the speed.',
+    short:'Hit the target. Angle locked; you choose the speed.',
+    hint:'Too slow and the planet drags the shot down; too fast and it sails over. Change the speed in small steps and watch where each shot goes.',
+    debrief:'Speed changes how long the shot spends near the planet. Slower means more time for gravity to change its velocity, so more bending. A thrown ball curves for the same reason: gravity pulls on it the whole time it\'s flying.'},
+  {id:'2.3', unit:2, stage:4, title:'Tune the gravity', g:0, edges:'open',
+    shooter:[150,300], target:[1000,520], targetAng:160, planets:[[620,570,55,2.5]],
+    lock:{a:0, s:50, g:'free'}, start:{a:0, s:50}, par:3,
+    learn:'The strength of gravity sets how hard every planet pulls. Double it and every pull doubles.',
+    goal:'Hit the target without changing your aim. The angle and speed are locked; you choose the strength of gravity.',
+    short:'Hit the target. Aim locked; you choose the gravity strength.',
+    hint:'At 0× the shot goes straight. As you turn gravity up, the shot curves down more. Find the setting where it curves just enough, adjusting in steps of about 0.1.',
+    debrief:'Stronger gravity means a bigger force, so a bigger acceleration towards the planet (F = ma), and the path bends more. In the real universe the gravitational constant is fixed; here you got to change it!'},
+
+  {id:'3.1', unit:3, stage:4, title:'Density matters', g:1, edges:'open', labels:true,
+    shooter:[150,400], target:[1050,400], targetAng:180, planets:[[600,260,50,1],[600,540,50,5]],
+    lock:{a:null, s:55}, start:{a:0, s:55}, par:3,
+    learn:'Two planets can be the same size but have different masses. Density tells you how much mass is packed into each bit of volume.',
+    goal:'Hit the target. The two planets are the same size, so check their densities (ρ) before you aim.',
+    short:'Hit the target. Same size planets, different density.',
+    hint:'The blue planet is 5 times as dense, so it has 5 times the mass and pulls 5 times as hard. Aim a little towards the red planet (above the target) to balance it out.',
+    debrief:'Mass = density × volume. Same size (volume) but 5× the density means 5× the mass, and 5× the gravitational pull at the same distance.'},
+  {id:'3.2', unit:3, stage:4, title:'Big red, small blue', g:1, edges:'open', labels:true,
+    shooter:[150,400], target:[1050,400], targetAng:180, planets:[[600,240,60,1],[600,560,35,5]],
+    lock:{a:null, s:50}, start:{a:15, s:50}, par:2,
+    learn:'A planet\'s pull depends on its mass, not just its size. Mass = density × radius³, so a small, dense planet can pull as hard as a big, light one.',
+    goal:'Hit the target. Before you fire, predict which planet will pull your shot harder: the big red one or the small blue one?',
+    short:'Hit the target. Which planet pulls harder?',
+    hint:'Compare the M (mass) labels. If two planets have equal mass and are equally far from your path, their pulls cancel out...',
+    debrief:'The masses are almost exactly equal (216 and 214), and the planets are the same distance from the path, so their pulls balance and a straight shot flies true. Size alone doesn\'t tell you the pull; you need the density too.'},
+  {id:'3.3', unit:3, stage:5, title:'The balance point', g:1, edges:'open', labels:true,
+    shooter:[150,470], target:[1050,470], targetAng:180, planets:[[600,250,50,4],[600,580,50,1]],
+    lock:{a:null, s:55}, start:{a:0, s:55}, par:3,
+    learn:'Gravity gets weaker with the square of distance: twice as far away gives one quarter of the pull. This is the inverse-square law.',
+    goal:'Hit the target. You are lined up with a gap between a heavy planet (4× the mass) and a light one. Notice the gap is not halfway between them!',
+    short:'Hit the target through the gap. Inverse-square law!',
+    hint:'The pulls balance where the heavy planet is twice as far away as the light one (4× the mass ÷ 2² = the same pull). Your ship is lined up with that balance point, so a shot near 0° almost works. The pulls only balance exactly at the gap, so watch which way your trail bends and correct by a few degrees.',
+    debrief:'The heavy planet has 4× the mass. At 2× the distance its pull drops to ¼ (because 2² = 4), so the two pulls are equal at the point twice as far from the heavy planet. That\'s the inverse-square law.'},
+
+  {id:'4.1', unit:4, stage:5, title:'Slingshot', g:1, edges:'open', goalType:'slingshot', slingPlanet:0,
+    shooter:[200,700], target:[260,130], targetAng:270, planets:[[720,420,65,4],[230,420,45,1]],
+    lock:{a:null, s:null}, start:{a:20, s:40}, par:5,
+    learn:'A planet can swing a shot round and send it off in a new direction. This is a slingshot.',
+    goal:'Hit the target by swinging at least 90° around the big planet. The small planet blocks the direct route.',
+    short:'Swing round the big planet and hit the target.',
+    goalFail:'the shot needs to swing at least 90° around the big planet first.',
+    hint:'A slow shot gives the big planet more time to pull it round. Try a low speed (around 10), then adjust the angle a few degrees at a time and watch how the loop changes.',
+    debrief:'The big planet kept pulling the shot towards its centre while the shot moved past, turning its path round. Notice the shot left about as fast as it arrived, because these planets stay still. Real spacecraft gravity assists also gain speed, because the planet is moving along its orbit.'},
+  {id:'4.2', unit:4, stage:5, title:'Into orbit', g:1, edges:'open', goalType:'loop', selfSafe:true,
+    shooter:[600,250], target:[1080,700], targetAng:135, planets:[[600,400,55,5]],
+    lock:{a:0, s:null}, start:{a:0, s:25}, par:3,
+    learn:'An orbit is a shot that keeps falling towards a planet but moves sideways fast enough to keep missing it.',
+    goal:'Put your shot into orbit: make it go all the way round the planet. The angle is locked sideways (0°), so you choose the speed. Your own ship is shielded for this one.',
+    short:'Make the shot orbit the planet. You choose the speed.',
+    goalFail:'',
+    hint:'Too slow and the shot spirals in and crashes; too fast and it flies away for ever. Somewhere in between, it goes round and round.',
+    debrief:'In an orbit, gravity pulls the shot towards the planet\'s centre while its sideways speed carries it round, so it keeps falling but always misses. A circular orbit here needs a speed of about 42. Much faster than about 59 and the shot escapes completely: escape speed is √2 × circular orbit speed.'},
+  {id:'4.3', unit:4, stage:5, title:'Grand finale', g:1, edges:'open',
+    shooter:[120,700], target:[1080,160], targetAng:225, planets:[[450,250,45,2],[520,560,60,3.5],[800,380,50,5],[980,650,35,1.5],[300,450,30,4]],
+    lock:{a:null, s:null}, start:{a:45, s:40}, par:5,
+    learn:'Put it all together: angles, speed, mass, density and distance all shape the path.',
+    goal:'Hit the target through a crowded field of planets. Everything is up to you.',
+    short:'Hit the target. Everything is up to you.',
+    hint:'Use the planet labels and the gravity field overlays (in Settings) to plan a route. Change one thing at a time and use your trails to see what each change did.',
+    debrief:'You combined everything: angle, speed, and the pulls of several planets of different masses at different distances. Every pull adds together as a vector to make the net force that shapes the path.'}
+];
+let chalBest = {};                // challenge index -> best stars this session
+
+function startChallenge(i){
+  const L = CHALLENGES[i];
+  finishRoundRecord();
+  challenge = {i, L, shots: 0, misses: 0, g: L.g};
+  roundId++;
+  ships = [{x: L.shooter[0], y: L.shooter[1]}, {x: L.target[0], y: L.target[1]}];
+  planets = L.planets.map(([x, y, r, d]) => ({x, y, r, d, m: d*r*r*r}));
+  applyGravity();
+  placeReadout();
+  rounds.push({id: roundId, planets: planets.length, edges: L.edges, cpu: false, winner: null, img: null, challenge: `Challenge ${L.id}: ${L.title}`});
+  shots = []; live = null; lastInfo = null; particles = []; shotsThisRound = [0, 0]; aiShots = 0;
+  current = 0; state = 'aim';
+  aim[0] = {a: L.lock.a ?? L.start.a, s: L.lock.s ?? L.start.s};
+  aim[1] = {a: L.targetAng, s: 0};
+  $('overlay').style.display = 'none'; $('roundBox').hidden = false; $('chalDone').hidden = true;
+  $('chalBar').hidden = false;
+  syncInputs(); updateUI(); updateChalBar();
+  setStatus(`Challenge ${L.id}: ${L.goal}`);
+  showIntro();
+}
+function exitChallenge(){
+  challenge = null;
+  $('chalBar').hidden = true;
+  applyGravity();
+  nextRound();
+}
+function updateChalBar(){
+  if (!challenge) return;
+  const C = challenge;
+  $('cbTitle').textContent = `🎯 ${C.L.id} ${C.L.title}`;
+  $('cbGoal').textContent = C.L.short;
+  $('cbShots').textContent = C.shots;
+  $('cbHint').disabled = C.misses < 2;
+}
+function challengePassed(s){
+  const L = challenge.L, T = s.track, hitT = s.result === 'ship' && s.hit === 1;
+  switch (L.goalType){
+    case 'loop':      return !!T && T.sweep.some(a => Math.abs(a) > TAU + 0.05);
+    case 'bounce':    return hitT && !!T && T.bounces >= 1;
+    case 'slingshot': return hitT && !!T && (L.slingPlanet != null ? Math.abs(T.planetTurn[L.slingPlanet]) >= Math.PI/2
+                                                     : T.planetTurn.some(a => Math.abs(a) >= Math.PI/2));
+    default:          return hitT;
+  }
+}
+function challengeShotEnded(s, tag){
+  const C = challenge, L = C.L, secs = s.t.toFixed(1);
+  const hitT = s.result === 'ship' && s.hit === 1, hitSelf = s.result === 'ship' && s.hit === 0;
+  if (s.result === 'ship') burst(ships[s.hit].x, ships[s.hit].y, PCOL[s.hit], 70, 220);
+  else if (s.result === 'planet') burst(s.x, s.y, '#ffffff', 18, 70);
+  if (challengePassed(s)){
+    const stars = C.shots <= L.par ? 3 : C.shots <= L.par + 2 ? 2 : 1;
+    chalBest[C.i] = Math.max(chalBest[C.i] || 0, stars);
+    const r = rounds[rounds.length - 1]; r.passed = true; r.tries = C.shots;
+    if (hitT) lastInfo.destroyed = 1;
+    state = 'over';
+    $('cdStars').textContent = '⭐'.repeat(stars) + '☆'.repeat(3 - stars);
+    $('cdMsg').textContent = `Challenge ${L.id} passed in ${C.shots} shot${C.shots === 1 ? '' : 's'}!`;
+    $('cdText').textContent = L.debrief;
+    $('cdNext').hidden = C.i === CHALLENGES.length - 1;
+    $('roundBox').hidden = true; $('chalDone').hidden = false; $('overlay').style.display = 'flex';
+    setStatus(tag + 'Challenge passed!');
+    updateUI(); updateChalBar();
+    return;
+  }
+  C.misses++;
+  const what = hitT ? `You hit the target, but ${L.goalFail}`
+    : hitSelf ? 'You hit your own ship!'
+    : {planet: `Crashed into a planet after ${secs} s.`, edge: `Flew off the edge after ${secs} s.`,
+       lost: `Drifted off into deep space after ${secs} s.`, timeout: `Still flying after ${MAX_T} s, so it burned out.`}[s.result];
+  const close = L.goalType === 'loop' ? '' : ` Closest approach to the target: ${Math.round(s.minD)}.`;
+  setStatus(tag + what + close + (C.misses >= 2 ? '  Stuck? Try the 💡 Hint.' : ''));
+  state = 'aim';
+  syncInputs(); updateUI(); updateChalBar();
+}
+function showIntro(){
+  const L = challenge.L;
+  $('ciTitle').textContent = `🎯 Challenge ${L.id}: ${L.title}`;
+  $('ciStage').textContent = `Stage ${L.stage}`; $('ciStage').className = 'tag s' + L.stage;
+  $('ciLearn').textContent = L.learn;
+  $('ciGoal').textContent = L.goal;
+  const rules = [];
+  if (L.lock.a != null) rules.push(`Angle locked at ${L.lock.a}°`);
+  if (L.lock.s != null) rules.push(`Speed locked at ${L.lock.s}`);
+  rules.push(L.lock.g === 'free' ? 'You control the gravity strength' : L.g === 0 ? 'Gravity is off' : `Gravity ${L.g}×`);
+  rules.push({vanish: 'Shots vanish at the edges', bounce: 'Shots bounce off the edges', open: 'Open space', wrap: 'Edges wrap around'}[L.edges]);
+  $('ciRules').textContent = rules.join(' · ');
+  $('ciPar').textContent = `⭐⭐⭐ for passing in ${L.par} shot${L.par === 1 ? '' : 's'} or fewer.`;
+  $('chalIntro').showModal();
+}
+function openChalList(){
+  const box = $('chalList'); let h = '';
+  for (const u of CHAL_UNITS){
+    h += `<h3>${u.n}. ${u.title}</h3><div class="cl-unit">`;
+    CHALLENGES.forEach((L, i) => {
+      if (L.unit !== u.n) return;
+      const b = chalBest[i] || 0;
+      h += `<button class="cl-row" data-i="${i}"><span class="cl-id">${L.id}</span><span class="cl-t">${L.title}</span>`
+         + `<span class="tag s${L.stage}">Stage ${L.stage}</span><span class="cl-stars">${b ? '⭐'.repeat(b) + '☆'.repeat(3 - b) : ''}</span></button>`;
+    });
+    h += '</div>';
+  }
+  box.innerHTML = h;
+  box.querySelectorAll('.cl-row').forEach(b => b.addEventListener('click', () => { $('chalDlg').close(); startChallenge(+b.dataset.i); }));
+  if (!$('chalDlg').open) $('chalDlg').showModal();
+}
+function setChalGravity(v){
+  if (!challenge) return;
+  v = parseNum(v); if (!isFinite(v)) v = challenge.g;
+  challenge.g = round2(clamp(v, 0, 3));
+  applyGravity(); syncInputs();
+}
 
 // ---------- computer opponent ----------
 function aiChoose(pi){
@@ -1173,23 +1496,35 @@ const angleNum = $('angleNum'), angleRange = $('angleRange'), speedNum = $('spee
 function syncInputs(){
   const A = aim[current];
   angleNum.value = A.a; angleRange.value = A.a; speedNum.value = A.s; speedRange.value = A.s;
+  if (challenge){ $('gravNum').value = challenge.g; $('gravRange').value = challenge.g; }
 }
 function setAngle(v){
+  if (challenge && challenge.L.lock.a != null){ syncInputs(); return; }
   v = parseNum(v); if (!isFinite(v)) v = aim[current].a;
   v = round2(((v % 360) + 360) % 360);
   aim[current].a = v; syncInputs();
 }
 function setSpeed(v){
+  if (challenge && challenge.L.lock.s != null){ syncInputs(); return; }
   v = parseNum(v); if (!isFinite(v)) v = aim[current].s;
   aim[current].s = round2(clamp(v, 0, 100)); syncInputs();
 }
 function setStatus(t){ $('status').textContent = t; }
 function updateUI(){
   const t = $('turn');
-  t.textContent = state === 'over' ? 'Round over' : `${name(current)}'s turn`;
-  t.style.color = state === 'over' ? 'var(--muted)' : PCOL[current];
+  t.textContent = challenge ? `Challenge ${challenge.L.id}` : state === 'over' ? 'Round over' : `${name(current)}'s turn`;
+  t.style.color = state === 'over' && !challenge ? 'var(--muted)' : PCOL[current];
   const canAim = state === 'aim';
-  [angleNum, angleRange, speedNum, speedRange].forEach(el => el.disabled = !canAim);
+  const lockA = !!challenge && challenge.L.lock.a != null, lockS = !!challenge && challenge.L.lock.s != null;
+  const gFree = !!challenge && challenge.L.lock.g === 'free';
+  [angleNum, angleRange].forEach(el => el.disabled = !canAim || lockA);
+  [speedNum, speedRange].forEach(el => el.disabled = !canAim || lockS);
+  angleNum.closest('.ctl').classList.toggle('locked', lockA);
+  speedNum.closest('.ctl').classList.toggle('locked', lockS);
+  $('gravCtl').hidden = !gFree;
+  [$('gravNum'), $('gravRange')].forEach(el => el.disabled = !canAim);
+  $('gravBtn').disabled = !!challenge;
+  document.querySelector('.scores').style.visibility = challenge ? 'hidden' : '';
   const fb = $('fireBtn');
   fb.textContent = state === 'flying' ? 'SKIP ▶▶' : 'FIRE';
   fb.disabled = !(state === 'aim' || state === 'flying');
@@ -1210,18 +1545,18 @@ angleRange.addEventListener('input', () => setAngle(angleRange.value));
 speedRange.addEventListener('input', () => setSpeed(speedRange.value));
 $('fireBtn').addEventListener('click', () => { if (state === 'flying') skip(); else if (state === 'aim') fire(); });
 $('nextBtn').addEventListener('click', nextRound);
-$('newBtn').addEventListener('click', nextRound);
+$('newBtn').addEventListener('click', () => challenge ? startChallenge(challenge.i) : nextRound());
 $('clearBtn').addEventListener('click', () => { shots = []; });
 
 window.addEventListener('keydown', e => {
   if (document.querySelector('dialog[open]')) return;
-  const tag = e.target.tagName, isNum = e.target === angleNum || e.target === speedNum;
+  const tag = e.target.tagName, isNum = e.target === angleNum || e.target === speedNum || e.target === $('gravNum');
   if (tag === 'BUTTON' || tag === 'SELECT') return;
   if (e.key === 'Enter'){
     e.preventDefault();
     if (isNum) e.target.dispatchEvent(new Event('change'));
     if (state === 'flying') skip();
-    else if (state === 'over') nextRound();
+    else if (state === 'over') challenge ? $('cdNext').hidden ? openChalList() : startChallenge(challenge.i + 1) : nextRound();
     else if (state === 'aim') fire();
     return;
   }
@@ -1246,14 +1581,15 @@ function refreshSettingsForm(){
     if (el.type === 'checkbox') el.checked = !!settings[k]; else el.value = settings[k];
   });
   $('planetsLbl').textContent = LEVEL_NAMES[settings.planets];
-  $('gravityLbl').textContent = gravityText();
+  $('gravityLbl').textContent = gravityText(settings.gravity);
 }
-function gravityText(){ return settings.gravity === 0 ? 'Off (0×)' : `${settings.gravity}×`; }
+function gravityText(g){ return g === 0 ? 'Off (0×)' : `${g}×`; }
 function applyGravity(){
-  G = G_BASE * settings.gravity;
+  const g = effGravity();
+  G = G_BASE * g;
   if (planets.length) buildField();
-  $('gravChip').textContent = settings.gravity === 0 ? 'off' : `×${settings.gravity}`;
-  $('gravityLbl').textContent = gravityText();
+  $('gravChip').textContent = g === 0 ? 'off' : `×${g}`;
+  $('gravityLbl').textContent = gravityText(settings.gravity);
 }
 sDlg.querySelectorAll('[data-k]').forEach(el => {
   el.addEventListener(el.type === 'range' ? 'input' : 'change', () => {
@@ -1278,6 +1614,22 @@ const aDlg = $('achDlg');
 $('achBtn').addEventListener('click', () => { renderAchList(); aDlg.showModal(); });
 $('achClose').addEventListener('click', () => aDlg.close());
 $('achReset').addEventListener('click', () => { earned = {}; updateAchCount(); renderAchList(); });
+$('chalBtn').addEventListener('click', openChalList);
+$('chalClose').addEventListener('click', () => $('chalDlg').close());
+$('ciStart').addEventListener('click', () => $('chalIntro').close());
+$('ciList').addEventListener('click', () => { $('chalIntro').close(); openChalList(); });
+$('cbHint').addEventListener('click', () => { if (challenge) setStatus('💡 Hint: ' + challenge.L.hint); });
+$('cbRestart').addEventListener('click', () => { if (challenge) startChallenge(challenge.i); });
+$('cbList').addEventListener('click', openChalList);
+$('cbExit').addEventListener('click', exitChallenge);
+$('cdRetry').addEventListener('click', () => startChallenge(challenge.i));
+$('cdList').addEventListener('click', openChalList);
+$('cdNext').addEventListener('click', () => startChallenge(challenge.i + 1));
+$('gravNum').addEventListener('change', () => setChalGravity($('gravNum').value));
+$('gravNum').addEventListener('input', () => { const v = parseNum($('gravNum').value); if (challenge && isFinite(v)){ challenge.g = round2(clamp(v, 0, 3)); $('gravRange').value = challenge.g; applyGravity(); } });
+$('gravRange').addEventListener('input', () => setChalGravity($('gravRange').value));
+$('gravNum').addEventListener('focus', () => $('gravNum').select());
+$('gravNum').addEventListener('mouseup', e => e.preventDefault());
 const lDlg = $('logDlg');
 $('logBtn').addEventListener('click', () => { renderLog(); lDlg.showModal(); });
 $('logClose').addEventListener('click', () => lDlg.close());
