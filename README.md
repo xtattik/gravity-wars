@@ -64,12 +64,25 @@ Trick shots earn achievements, which pop up as they happen. The 🏆 button in t
 | 🔄 | **Loop de loop** | Your shot goes all the way round a planet (any result). |
 | ☄️ | **Slingshot** | Swing at least 90° around one planet, then hit the enemy. |
 | 🦶 | **Shot myself in the… foot** | Gravity swings your shot back round and it hits your own ship. |
-| ⏳ | **Hang time** | Hit the enemy after more than 15 seconds in flight. |
+| ⏳ | **Hang time** | Hit the enemy after more than 10 seconds in flight. |
 | 😅 | **Close shave** | Miss the enemy by less than 5 units (measured to the ship's hull). |
 | 🍎 | **Newton's First** | Hit the enemy with gravity switched off. |
 | 🎱 | **Pinball** | Hit the enemy after 3 or more bounces off the edges (Bounce mode). |
 
 The computer opponent can earn them too. One shot can earn several at once: a first-shot, three-bounce hit with gravity off earns Deadshot, Pinball and Newton's First together.
+
+## Shot log and reports 📋
+
+The **📋 Log** button lists every shot fired this session, grouped by round. For each shot it shows the angle, speed, how much the player changed their angle and speed since their previous shot, gravity, result, flight time, closest approach and any achievements. Type the students' names in to use them in the exports.
+
+| Export | What you get |
+|---|---|
+| **Print / Save PDF** | A printable report: a summary per player, a picture of each round's map with its shot trails, the shot tables, and **reflection questions** with lines to write on. Choose *Save as PDF* as the printer to keep a copy. |
+| **Download report** | The same report as a web page file, e.g. to hand in through the LMS. |
+| **Download CSV** | The shot table as a spreadsheet file for Excel or Google Sheets, ready for graphing (e.g. closest approach vs shot number). |
+| **Copy table** | The shot table copied to the clipboard, to paste into Word, Docs, Excel or Sheets. |
+
+The reflection questions are built from each student's own shots. They quote the student's run of closest approaches in their longest round, and ask about planet crashes (the inverse-square law), any gravity changes they tried, and achievements earned or planned. They end with advice for a first-time player. Untick *Add reflection questions* for a plain log. The log resets when the page is reloaded.
 
 ## Classroom ideas
 
@@ -78,7 +91,7 @@ The computer opponent can earn them too. One shot can earn several at once: a fi
 - **Density vs size:** turn on planet labels and find a big red planet and a small blue one with similar masses. Compare how they bend a shot.
 - **Force vs velocity:** turn on the arrows and watch a slingshot. The force points at the planet, not the way the missile is moving.
 - **Slingshot discussion:** why doesn't the missile speed up after swinging round a planet here, when real spacecraft gain speed from a gravity assist? (Here the planets are fixed in place; real planets are moving.)
-- **Record and refine:** students log each angle and speed they try, and the result, then explain how they corrected their aim.
+- **Record and refine:** print the shot log report at the end of the lesson. Students answer the reflection questions about how they corrected their aim, or graph their closest approach against shot number from the CSV.
 
 ## Credits
 

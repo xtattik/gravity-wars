@@ -76,6 +76,18 @@ kbd{background:#0a0c16;border:1px solid var(--line);border-radius:4px;padding:1p
 .ach .ds{font-size:14px;margin-top:2px}
 .ach .ph{font-size:13px;color:var(--muted);margin-top:4px;font-style:italic}
 .ach .who{margin-left:auto;text-align:right;font-size:13px;white-space:nowrap;font-weight:600}
+#logDlg{max-width:min(980px,96vw);width:980px}
+.names{display:flex;gap:14px;flex-wrap:wrap;margin:6px 0 10px}
+.names label{display:flex;align-items:center;gap:6px;font-size:14px}
+.names input[type=text]{background:#0a0c16;border:1px solid var(--line);border-radius:6px;padding:5px 8px;width:170px}
+.logwrap{max-height:52vh;overflow:auto;border:1px solid var(--line);border-radius:8px}
+table.log{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+table.log th,table.log td{padding:5px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+table.log th{position:sticky;top:0;background:var(--panel2);font-weight:600;color:var(--muted)}
+table.log tr.rnd td{background:#141829;color:var(--accent);font-weight:700;white-space:normal}
+table.log td.num{text-align:right}
+table.log tr.hit td{background:rgba(93,255,138,.07)}
+.empty{padding:20px;text-align:center;color:var(--muted)}
 @media (max-width:700px){
   header h1{font-size:15px}
   .ctl input[type=range]{width:110px}
@@ -98,6 +110,7 @@ kbd{background:#0a0c16;border:1px solid var(--line);border-radius:4px;padding:1p
     <button id="clearBtn" title="Remove old shot trails">Clear trails</button>
     <button id="newBtn">New round</button>
     <button id="settingsBtn">⚙ Settings</button>
+    <button id="logBtn" title="Every shot this session, with export for students' books">📋 Log <b id="logCount">0</b></button>
     <button id="achBtn" title="Achievements earned this session">🏆 <b id="achCount">0/8</b></button>
     <button id="helpBtn">? Help</button>
   </div>
@@ -189,6 +202,25 @@ kbd{background:#0a0c16;border:1px solid var(--line);border-radius:4px;padding:1p
   <div class="btnrow">
     <button id="achReset">Reset achievements</button>
     <button id="achClose" class="primary">Close</button>
+  </div>
+</dialog>
+
+<dialog id="logDlg">
+  <h2>📋 Shot log</h2>
+  <p class="note">Every shot fired this session. "Angle change" and "Speed change" show how much the player adjusted since their previous shot in that round. The log resets when the page is reloaded.</p>
+  <div class="names">
+    <label><span class="p1">Player 1 name</span> <input type="text" id="nameP1" placeholder="Player 1" autocomplete="off"></label>
+    <label><span class="p2">Player 2 name</span> <input type="text" id="nameP2" placeholder="Player 2" autocomplete="off"></label>
+    <label><input type="checkbox" id="incReflect" checked> Add reflection questions to the report</label>
+  </div>
+  <div class="logwrap" id="logTable"></div>
+  <div class="btnrow">
+    <button id="logClear">Clear log</button>
+    <button id="logCopy" title="Copy the table to paste into Word, Docs, Excel or Sheets">Copy table</button>
+    <button id="logCsv" title="Download a spreadsheet file">Download CSV</button>
+    <button id="logHtml" title="Download the report as a web page file">Download report</button>
+    <button id="logPrint" class="primary" title="Print it, or choose 'Save as PDF' as the printer">Print / Save PDF</button>
+    <button id="logClose">Close</button>
   </div>
 </dialog>
 
@@ -753,9 +785,11 @@ function burst(x, y, col, n, sp){
 
 // ---------- game flow ----------
 function nextRound(){
+  finishRoundRecord();
   roundId++;
   starter = 1 - starter; current = starter;
   makeRound();
+  rounds.push({id: roundId, planets: planets.length, edges: settings.edges, cpu: isAI(1), winner: null, img: null});
   shots = []; live = null; lastInfo = null; aiShots = 0; particles = []; shotsThisRound = [0, 0];
   state = 'aim';
   $('overlay').style.display = 'none';
@@ -769,6 +803,7 @@ function fire(){
   if (settings.trails === 'off') shots = [];
   live = newShot(current, A.a, A.s, true);
   shotsThisRound[current]++;
+  Object.assign(live, {fireA: A.a, fireS: A.s, gravity: settings.gravity, shotNo: shotsThisRound[current], cpu: isAI(current)});
   lastInfo = null;
   state = 'flying';
   setStatus(`${name(current)} fires: angle ${A.a}°, speed ${A.s}`);
@@ -782,7 +817,7 @@ function endShot(){
   if (settings.trails === 'last') shots = shots.filter(x => x.owner !== s.owner);
   shots.push({owner:s.owner, path:s.path, end:[s.x, s.y], result:s.result});
   lastInfo = {owner:s.owner, t:s.t, v:Math.hypot(s.vx, s.vy), a:Math.hypot(s.a[0], s.a[1]), minD:s.minD, destroyed:-1};
-  checkAchievements(s);
+  logShot(s, checkAchievements(s));
   const who = name(s.owner), tgt = name(1 - s.owner), secs = s.t.toFixed(1);
   const close = `Closest approach to ${tgt}: ${Math.round(s.minD)}.`;
   const A = aim[s.owner];
@@ -836,9 +871,9 @@ const ACHIEVEMENTS = [
     phys:'A force at an angle to the motion changes the direction, not just the speed. Enough of it and your shot comes home.',
     test:(s, c) => c.hitSelf && s.track.turn >= 2*Math.PI/3},
   {id:'hang', ico:'⏳', name:'Hang time',
-    desc:'Hit the enemy after more than 15 seconds in flight.',
+    desc:'Hit the enemy after more than 10 seconds in flight.',
     phys:'A slow shot spends longer near each planet, so gravity has more time to change its velocity.',
-    test:(s, c) => c.hitEnemy && s.t > 15},
+    test:(s, c) => c.hitEnemy && s.t > 10},
   {id:'shave', ico:'😅', name:'Close shave',
     desc:'Miss the enemy by less than 5 units.',
     phys:'A tiny change in angle grows into a big miss over a long curved path. That\'s why aiming here takes careful adjustment.',
@@ -856,7 +891,8 @@ let earned = {};                  // id -> [times by player 1, times by player 2
 let shotsThisRound = [0, 0];
 
 function checkAchievements(s){
-  if (!s.track) return;
+  const got = [];
+  if (!s.track) return got;
   const c = {
     hitEnemy: s.result === 'ship' && s.hit !== s.owner,
     hitSelf:  s.result === 'ship' && s.hit === s.owner,
@@ -866,9 +902,11 @@ function checkAchievements(s){
   for (const a of ACHIEVEMENTS){
     if (!a.test(s, c)) continue;
     (earned[a.id] = earned[a.id] || [0, 0])[s.owner]++;
+    got.push(a.name);
     if (settings.achievements){ setTimeout(() => toast(a, s.owner), delay); delay += 700; }
   }
   updateAchCount();
+  return got;
 }
 function toast(a, who){
   const el = document.createElement('div');
@@ -900,6 +938,174 @@ function renderAchList(){
     list.appendChild(row);
   }
 }
+
+// ---------- shot log & exports ----------
+let shotLog = [];                 // one entry per shot fired this session
+let rounds = [];                  // one entry per round played this session
+
+function resultText(s){
+  switch (s.result){
+    case 'ship':    return s.hit === s.owner ? 'Hit own ship' : 'HIT';
+    case 'planet':  return `Crashed into planet (ρ ${planets[s.hit].d.toFixed(1)})`;
+    case 'edge':    return 'Flew off the edge';
+    case 'lost':    return 'Lost in deep space';
+    default:        return `Burned out (${MAX_T} s)`;
+  }
+}
+const angleChange = (a, b) => round2(((a - b + 540) % 360) - 180);
+const signed = v => (v > 0 ? '+' : '') + v;
+
+function logShot(s, got){
+  if (s.fireA === undefined) return;
+  const prev = [...shotLog].reverse().find(e => e.round === roundId && e.player === s.owner);
+  shotLog.push({
+    round: roundId, player: s.owner, cpu: s.cpu, shot: s.shotNo, angle: s.fireA, speed: s.fireS, gravity: s.gravity,
+    dA: prev ? angleChange(s.fireA, prev.angle) : null, dS: prev ? round2(s.fireS - prev.speed) : null,
+    result: resultText(s), hit: s.result === 'ship' && s.hit !== s.owner, crash: s.result === 'planet',
+    time: +s.t.toFixed(1), minD: Math.round(s.minD), ach: got
+  });
+  const r = rounds[rounds.length - 1];
+  if (r && s.result === 'ship') r.winner = s.hit === s.owner ? 1 - s.owner : s.owner;
+  $('logCount').textContent = shotLog.length;
+}
+// picture of the map and its trails, small enough to keep one per round
+function snapshot(){
+  render(performance.now());
+  const c = document.createElement('canvas'); c.width = 720; c.height = 480;
+  c.getContext('2d').drawImage(canvas, 0, 0, c.width, c.height);
+  try { return c.toDataURL('image/jpeg', 0.85); } catch(e){ return null; }
+}
+function finishRoundRecord(){
+  const r = rounds[rounds.length - 1];
+  if (r && shotLog.some(e => e.round === r.id)) r.img = snapshot();
+}
+
+function playerName(i, cpu){
+  if (cpu) return 'Computer';
+  return ($(i === 0 ? 'nameP1' : 'nameP2').value.trim()) || `Player ${i + 1}`;
+}
+function esc(t){ return String(t).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+// rounds that have shots, numbered 1, 2, 3... for the report
+function playedRounds(){
+  return rounds.filter(r => shotLog.some(e => e.round === r.id)).map((r, i) => ({...r, num: i + 1}));
+}
+function roundTitle(r){
+  const g = [...new Set(shotLog.filter(e => e.round === r.id).map(e => e.gravity + '×'))].join(' / ');
+  const w = r.winner === null ? (r.id === roundId && state !== 'over' ? 'in progress' : 'no winner')
+    : `won by ${playerName(r.winner, r.winner === 1 && r.cpu)}`;
+  return `Round ${r.num}: ${r.planets} planets, gravity ${g}, ${{open:'open space', vanish:'vanishing edges', bounce:'bouncing edges', wrap:'wrap-around edges'}[r.edges]}, ${w}`;
+}
+const COLS = ['Round', 'Player', 'Shot', 'Angle (°)', 'Speed', 'Angle change', 'Speed change', 'Gravity', 'Result', 'Time (s)', 'Closest approach', 'Achievements'];
+const NUMERIC = new Set([2, 3, 4, 5, 6, 9, 10]);     // right-aligned columns (indexes into COLS)
+function rowCells(e, num){
+  return [num, playerName(e.player, e.cpu), e.shot, e.angle, e.speed, e.dA === null ? '–' : signed(e.dA), e.dS === null ? '–' : signed(e.dS),
+    e.gravity + '×', e.result, e.time, e.hit ? 0 : e.minD, e.ach.join(', ')];
+}
+
+function renderLog(){
+  const box = $('logTable');
+  if (!shotLog.length){ box.innerHTML = '<div class="empty">No shots yet. Fire away!</div>'; return; }
+  let h = '<table class="log"><thead><tr>' + COLS.slice(1).map(c => `<th>${c}</th>`).join('') + '</tr></thead><tbody>';
+  for (const r of playedRounds()){
+    h += `<tr class="rnd"><td colspan="${COLS.length - 1}">${esc(roundTitle(r))}</td></tr>`;
+    for (const e of shotLog.filter(x => x.round === r.id)){
+      const c = rowCells(e, r.num);
+      h += `<tr class="${e.hit ? 'hit' : ''}">` + c.slice(1).map((v, k) =>
+        `<td${k === 0 ? ` style="color:${PCOL[e.player]}"` : NUMERIC.has(k + 1) ? ' class="num"' : ''}>${esc(v)}</td>`).join('') + '</tr>';
+    }
+  }
+  box.innerHTML = h + '</tbody></table>';
+}
+
+function delimited(sep){
+  const q = v => { v = String(v); return sep === ',' && /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v.replace(/\t/g, ' '); };
+  const lines = [COLS.map(q).join(sep)];
+  for (const r of playedRounds()) for (const e of shotLog.filter(x => x.round === r.id)) lines.push(rowCells(e, r.num).map(q).join(sep));
+  return lines.join('\r\n');
+}
+
+// reflection questions built from this player's own shots
+function reflectionQs(i){
+  const mine = shotLog.filter(e => e.player === i && !e.cpu);
+  if (!mine.length) return [];
+  const pr = playedRounds(), num = id => (pr.find(r => r.id === id) || {}).num;
+  const qs = ['Describe how you went about aiming. Did you make big changes or small adjustments between shots? Look at the "Angle change" and "Speed change" columns: what do you notice?'];
+  let best = null;
+  for (const r of pr){ const rs = mine.filter(e => e.round === r.id); if (rs.length >= 2 && (!best || rs.length > best.length)) best = rs; }
+  if (best){
+    const seq = best.map(e => e.hit ? 'HIT' : e.minD).join(' → ');
+    qs.push(`In round ${num(best[0].round)} you took ${best.length} shots. Your closest approaches to the target were: ${seq}. What did you change each time, and how did your trails help you decide?`);
+  }
+  qs.push('Choose one of your shots that curved a lot. Which planet pulled on it the most? Use the words mass, density and distance to explain why.');
+  const crashes = mine.filter(e => e.crash).length;
+  if (crashes) qs.push(`${crashes} of your shots crashed into a planet. Why is the pull strongest close to a planet? What happens to the force of gravity when the distance doubles?`);
+  const gs = [...new Set(mine.map(e => e.gravity))];
+  qs.push(gs.length > 1
+    ? `You played with gravity set to ${gs.map(g => g + '×').join(' and ')}. How did you have to change your aim, and why?`
+    : 'If gravity were twice as strong, how would you change your best shot? Explain your prediction.');
+  const ach = [...new Set(mine.flatMap(e => e.ach))];
+  qs.push(ach.length
+    ? `You earned: ${ach.join(', ')}. Pick one and explain the physics of what happened.`
+    : 'Which achievement would you most like to earn next? Plan the shot: what angle and speed would you try, and why?');
+  qs.push('What advice would you give a classmate who is about to play for the first time?');
+  return qs;
+}
+
+function reportHTML(){
+  const pr = playedRounds(), cur = rounds[rounds.length - 1];
+  const imgFor = r => r.id === (cur && cur.id) ? snapshot() : r.img;
+  const date = new Date().toLocaleDateString(undefined, {weekday:'long', year:'numeric', month:'long', day:'numeric'});
+  const players = [0, 1].filter(i => shotLog.some(e => e.player === i));
+  let h = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Gravity Wars shot log</title><style>
+body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#111;margin:24px;line-height:1.4}
+h1{margin:0 0 4px}h2{margin:26px 0 8px;font-size:18px}.meta{color:#555;margin-bottom:14px}
+table{border-collapse:collapse;width:100%;font-size:12.5px;margin:6px 0 10px}
+th,td{border:1px solid #bbb;padding:4px 6px;text-align:left}th{background:#eee}
+td.n{text-align:right;font-variant-numeric:tabular-nums}tr.hit td{background:#e6f7ea;font-weight:600}
+img{width:100%;max-width:720px;border:1px solid #999;border-radius:4px;display:block;margin:6px 0}
+.sum td{font-size:13.5px}.q{margin:16px 0 4px;font-weight:600}.line{border-bottom:1px solid #999;height:26px}
+.round{break-inside:avoid-page}.reflect{break-before:page}
+@media print{body{margin:10mm}h2{break-after:avoid}}
+</style></head><body>
+<h1>Gravity Wars: shot log</h1>
+<div class="meta">${esc(date)} · ${players.map(i => esc(playerName(i, shotLog.some(e => e.player === i && e.cpu)))).join(' vs ')}</div>
+<table class="sum"><tr><th>Player</th><th>Shots</th><th>Hits</th><th>Rounds won</th><th>Closest miss</th><th>Achievements</th></tr>`;
+  for (const i of players){
+    const m = shotLog.filter(e => e.player === i), misses = m.filter(e => !e.hit);
+    const won = pr.filter(r => r.winner === i).length, ach = [...new Set(m.flatMap(e => e.ach))];
+    h += `<tr><td>${esc(playerName(i, m.some(e => e.cpu)))}</td><td class="n">${m.length}</td><td class="n">${m.filter(e => e.hit).length}</td><td class="n">${won}</td><td class="n">${misses.length ? Math.min(...misses.map(e => e.minD)) : '–'}</td><td>${esc(ach.join(', ') || '–')}</td></tr>`;
+  }
+  h += '</table>';
+  for (const r of pr){
+    const img = imgFor(r);
+    h += `<div class="round"><h2>${esc(roundTitle(r))}</h2>${img ? `<img src="${img}" alt="Map and shot trails for round ${r.num}">` : ''}<table><tr>${COLS.slice(1).map(c => `<th>${c}</th>`).join('')}</tr>`;
+    for (const e of shotLog.filter(x => x.round === r.id)){
+      const c = rowCells(e, r.num);
+      h += `<tr class="${e.hit ? 'hit' : ''}">${c.slice(1).map((v, k) => `<td${NUMERIC.has(k + 1) ? ' class="n"' : ''}>${esc(v)}</td>`).join('')}</tr>`;
+    }
+    h += '</table></div>';
+  }
+  if ($('incReflect').checked){
+    for (const i of players){
+      const qs = reflectionQs(i);
+      if (!qs.length) continue;
+      h += `<div class="reflect"><h2>Reflection: ${esc(playerName(i, false))}</h2>`;
+      qs.forEach((q, k) => { h += `<div class="q">${k + 1}. ${esc(q)}</div><div class="line"></div><div class="line"></div><div class="line"></div>`; });
+      h += '</div>';
+    }
+  }
+  return h + '</body></html>';
+}
+
+function download(name, text, type){
+  const url = URL.createObjectURL(new Blob([text], {type}));
+  const a = document.createElement('a'); a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+const fileStamp = () => { const d = new Date(), z = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}_${z(d.getHours())}-${z(d.getMinutes())}`; };
+function flash(btn, text){ const t = btn.textContent; btn.textContent = text; setTimeout(() => btn.textContent = t, 1500); }
 
 // ---------- computer opponent ----------
 function aiChoose(pi){
@@ -1072,6 +1278,41 @@ const aDlg = $('achDlg');
 $('achBtn').addEventListener('click', () => { renderAchList(); aDlg.showModal(); });
 $('achClose').addEventListener('click', () => aDlg.close());
 $('achReset').addEventListener('click', () => { earned = {}; updateAchCount(); renderAchList(); });
+const lDlg = $('logDlg');
+$('logBtn').addEventListener('click', () => { renderLog(); lDlg.showModal(); });
+$('logClose').addEventListener('click', () => lDlg.close());
+['nameP1', 'nameP2'].forEach(id => $(id).addEventListener('input', renderLog));
+$('logClear').addEventListener('click', () => {
+  if (!shotLog.length || !confirm('Clear every shot from the log?')) return;
+  shotLog = []; rounds = rounds.slice(-1); rounds[0].img = null;
+  $('logCount').textContent = 0; renderLog();
+});
+$('logCsv').addEventListener('click', () => {
+  if (!shotLog.length) return;
+  download(`gravity-wars-log_${fileStamp()}.csv`, '\ufeff' + delimited(','), 'text/csv;charset=utf-8');
+});
+$('logHtml').addEventListener('click', () => {
+  if (!shotLog.length) return;
+  download(`gravity-wars-report_${fileStamp()}.html`, reportHTML(), 'text/html;charset=utf-8');
+});
+$('logCopy').addEventListener('click', async () => {
+  if (!shotLog.length) return;
+  const text = delimited('\t');
+  try { await navigator.clipboard.writeText(text); }
+  catch(e){
+    const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy'); ta.remove();
+  }
+  flash($('logCopy'), 'Copied ✓');
+});
+$('logPrint').addEventListener('click', () => {
+  if (!shotLog.length) return;
+  const f = document.createElement('iframe');
+  f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+  document.body.appendChild(f);
+  f.onload = () => { setTimeout(() => { f.contentWindow.focus(); f.contentWindow.print(); setTimeout(() => f.remove(), 60000); }, 300); };
+  f.srcdoc = reportHTML();
+});
 
 // help dialog
 const hDlg = $('helpDlg');
