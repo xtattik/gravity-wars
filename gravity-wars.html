@@ -93,6 +93,8 @@ table.log td.num{text-align:right}
 table.log tr.hit td{background:rgba(93,255,138,.07)}
 .empty{padding:20px;text-align:center;color:var(--muted)}
 [hidden]{display:none!important}
+/* fixed-width value labels so the sliders beside them don't shift as the text changes */
+#planetsLbl,#gravityLbl{display:inline-block;width:5.5em;text-align:left;white-space:nowrap}
 #chalBar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:7px 14px;background:#141a33;border-bottom:1px solid var(--line)}
 #chalBar .cb-title{font-weight:700;color:var(--accent)}
 #chalBar .cb-goal{color:var(--text);font-size:14px;flex:1;min-width:200px}
